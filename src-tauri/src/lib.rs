@@ -10,6 +10,56 @@ struct FileData {
 }
 
 #[command]
+fn clear_images() -> Result<String, String> {
+    println!("Attempting to clear images directory");
+    
+    // Get the current executable's directory
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    
+    // Navigate to the images directory
+    let images_dir = current_dir
+        .parent()
+        .ok_or("Could not find parent directory")?
+        .join("src")
+        .join("assets")
+        .join("images");
+    
+    println!("Clearing directory: {:?}", images_dir);
+
+    // Read the directory
+    let dir_entries = fs::read_dir(&images_dir)
+        .map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    // Delete each file
+    for entry in dir_entries {
+        match entry {
+            Ok(entry) => {
+                let path = entry.path();
+                if path.is_file() {
+                    match fs::remove_file(&path) {
+                        Ok(_) => println!("Successfully deleted: {:?}", path),
+                        Err(e) => {
+                            let err_msg = format!("Failed to delete file {:?}: {}", path, e);
+                            println!("{}", err_msg);
+                            return Err(err_msg);
+                        }
+                    }
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to read directory entry: {}", e);
+                println!("{}", err_msg);
+                return Err(err_msg);
+            }
+        }
+    }
+
+    println!("Successfully cleared all files from images directory");
+    Ok("Images directory cleared successfully!".to_string())
+}
+
+#[command]
 fn upload_files(files: Vec<FileData>) -> Result<String, String> {
     println!("Received {} files for upload", files.len());
     
@@ -19,7 +69,7 @@ fn upload_files(files: Vec<FileData>) -> Result<String, String> {
     
     // Navigate to the project root and then to assets/images
     let upload_dir = current_dir
-        .parent() // go up from src-tauri
+        .parent()
         .ok_or("Could not find parent directory")?
         .join("src")
         .join("assets")
@@ -71,7 +121,7 @@ fn upload_files(files: Vec<FileData>) -> Result<String, String> {
 pub fn run() {
     println!("Starting Tauri application...");
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![upload_files])
+        .invoke_handler(tauri::generate_handler![upload_files, clear_images])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
 }

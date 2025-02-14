@@ -37,3 +37,10 @@ uploadForm.addEventListener("submit", async (event) =>
         resultDiv.textContent = "Failed to upload files.";
     }
 });
+
+function clearImages()
+{
+    invoke('clear_images')
+        .then(response => console.log(response))
+        .catch(error => console.error('Failed to clear images:', error));
+}
