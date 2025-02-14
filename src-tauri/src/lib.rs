@@ -1,8 +1,9 @@
 use std::fs;
 use std::io::Write;
 use tauri::command;
+use std::path::PathBuf;
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 struct FileData {
     name: String,
     data: Vec<u8>,
@@ -10,29 +11,65 @@ struct FileData {
 
 #[command]
 fn upload_files(files: Vec<FileData>) -> Result<String, String> {
-    let upload_dir = "./uploads"; // Local directory to save files
-
-    // Ensure the upload directory exists
-    if let Err(err) = fs::create_dir_all(upload_dir) {
-        return Err(format!("Failed to create upload directory: {}", err));
-    }
-
-    for file in files {
-        let file_path = format!("{}/{}", upload_dir, file.name);
-        let mut file_handle = match fs::File::create(&file_path) {
-            Ok(file) => file,
-            Err(err) => return Err(format!("Failed to create file '{}': {}", file.name, err)),
-        };
-
-        if let Err(err) = file_handle.write_all(&file.data) {
-            return Err(format!("Failed to write to file '{}': {}", file.name, err));
+    println!("Received {} files for upload", files.len());
+    
+    // Get the current executable's directory
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    
+    // Navigate to the project root and then to assets/images
+    let upload_dir = current_dir
+        .parent() // go up from src-tauri
+        .ok_or("Could not find parent directory")?
+        .join("src")
+        .join("assets")
+        .join("images");
+    
+    println!("Upload directory: {:?}", upload_dir);
+    
+    // Create the upload directory if it doesn't exist
+    match fs::create_dir_all(&upload_dir) {
+        Ok(_) => println!("Upload directory created/verified successfully"),
+        Err(e) => {
+            let err_msg = format!("Failed to create upload directory: {}", e);
+            println!("{}", err_msg);
+            return Err(err_msg);
         }
     }
-
+    
+    // Process each file
+    for file in files {
+        println!("Processing file: {} (size: {} bytes)", file.name, file.data.len());
+        
+        let file_path = upload_dir.join(&file.name);
+        println!("Writing to path: {:?}", file_path);
+        
+        // Create and write the file
+        match fs::File::create(&file_path) {
+            Ok(mut file_handle) => {
+                match file_handle.write_all(&file.data) {
+                    Ok(_) => println!("Successfully wrote file: {}", file.name),
+                    Err(e) => {
+                        let err_msg = format!("Failed to write file '{}': {}", file.name, e);
+                        println!("{}", err_msg);
+                        return Err(err_msg);
+                    }
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to create file '{}': {}", file.name, e);
+                println!("{}", err_msg);
+                return Err(err_msg);
+            }
+        }
+    }
+    
+    println!("All files processed successfully");
     Ok("Files uploaded successfully!".to_string())
 }
 
-fn main() {
+pub fn run() {
+    println!("Starting Tauri application...");
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![upload_files])
         .run(tauri::generate_context!())

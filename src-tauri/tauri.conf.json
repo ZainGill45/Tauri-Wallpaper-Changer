@@ -10,20 +10,13 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "wallpaper-changer",
+        "title": "Wallpaper Changer",
         "width": 800,
         "height": 600
       }
     ],
     "security": {
       "csp": null
-    }
-  },
-  "tauri": {
-    "allowlist": {
-      "fs": {
-        "all": true
-      }
     }
   },
   "bundle": {
