@@ -1,46 +1,45 @@
 const { invoke } = window.__TAURI__.core;
 
-const uploadForm = document.getElementById("uploadForm");
-const resultDiv = document.getElementById("result");
-
-uploadForm.addEventListener("submit", async (event) =>
+document.addEventListener("DOMContentLoaded", () =>
 {
-    event.preventDefault();
+    const imageUploadElement = document.querySelector("#image-upload");
 
-    const fileInput = document.getElementById("fileInput");
-    const files = fileInput.files;
+    imageUploadElement.addEventListener("change", async (event) =>
+    {
+        event.preventDefault();
 
-    if (files.length === 0)
-    {
-        resultDiv.textContent = "No files selected.";
-        return;
-    }
+        const files = imageUploadElement.files;
 
-    // Read files as an array of objects
-    const fileArray = [];
-    for (const file of files)
-    {
-        const fileBuffer = await file.arrayBuffer(); // Read file data
-        fileArray.push({
-            name: file.name,
-            data: Array.from(new Uint8Array(fileBuffer)), // Convert buffer to array for serialization
-        });
-    }
+        if (files.length === 0)
+        {
+            alert("No files selected.");
+            return;
+        }
 
-    try
-    {
-        const response = await invoke("upload_files", { files: fileArray });
-        resultDiv.textContent = response;
-    } catch (error)
-    {
-        console.error("Error uploading files:", error);
-        resultDiv.textContent = "Failed to upload files.";
-    }
+        // Read files as an array of objects
+        const fileArray = [];
+        for (const file of files)
+        {
+            const fileBuffer = await file.arrayBuffer(); // Read file data
+            fileArray.push({
+                name: file.name,
+                data: Array.from(new Uint8Array(fileBuffer)), // Convert buffer to array for serialization
+            });
+        }
+
+        try
+        {
+            const response = await invoke("upload_files", { files: fileArray });
+        } catch (error)
+        {
+            alert("Error uploading files: " + error);
+        }
+    });
 });
 
 function clearImages()
 {
     invoke('clear_images')
-        .then(response => console.log(response))
-        .catch(error => console.error('Failed to clear images:', error));
+        .then(response => alert(response))
+        .catch(error => alert('Failed to clear images:', error));
 }
