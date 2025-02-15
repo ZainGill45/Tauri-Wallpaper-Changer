@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.wallpaper-changer.app",
   "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
     "frontendDist": "../src"
   },
   "app": {

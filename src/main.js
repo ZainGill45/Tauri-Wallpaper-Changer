@@ -4,6 +4,10 @@ document.addEventListener("DOMContentLoaded", () =>
 {
     const imageUploadElement = document.querySelector("#image-upload");
 
+    document.getElementById('refresh-button')?.addEventListener('click', loadImages);
+
+    // loadImages();
+
     imageUploadElement.addEventListener("change", async (event) =>
     {
         event.preventDefault();
@@ -36,6 +40,48 @@ document.addEventListener("DOMContentLoaded", () =>
         }
     });
 });
+
+async function loadImages()
+{
+    try
+    {
+        // Show loading state
+        const gallery = document.getElementById('image-gallery');
+        gallery.innerHTML = 'Loading images...';
+
+        // Get images from Rust backend
+        const files = await invoke('get_files');
+
+        // Clear loading message
+        gallery.innerHTML = '';
+
+        // Create image elements for each file
+        files.forEach(file =>
+        {
+            console.log(file);
+
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'image-container';
+
+            const img = document.createElement('img');
+            img.src = './assets/images/' + file.name;
+            img.alt = file.name;
+
+            const name = document.createElement('p');
+            name.textContent = file.name;
+
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(name);
+            gallery.appendChild(imageContainer);
+        });
+
+    } catch (error)
+    {
+        console.error('Error loading images:', error);
+        document.getElementById('image-gallery').innerHTML =
+            `Error loading images: ${error}`;
+    }
+}
 
 function clearImages()
 {

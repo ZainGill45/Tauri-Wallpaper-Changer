@@ -1,12 +1,68 @@
-use std::fs;
-use std::io::Write;
 use tauri::command;
-use std::path::PathBuf;
+use std::io::Write;
+use std::fs;
 
 #[derive(serde::Deserialize, Debug)]
 struct FileData {
     name: String,
     data: Vec<u8>,
+}
+
+#[derive(serde::Serialize, Debug)]
+struct FileInfo {
+    name: String,
+    path: String,
+}
+
+#[command]
+fn get_files() -> Result<Vec<FileInfo>, String> {
+    println!("Fetching list of images");
+    
+    // Get the current executable's directory
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    
+    // Navigate to the images directory
+    let images_dir = current_dir
+        .parent()
+        .ok_or("Could not find parent directory")?
+        .join("src")
+        .join("assets")
+        .join("images");
+    
+    println!("Reading directory: {:?}", images_dir);
+
+    // Read the directory and collect file information
+    let mut files = Vec::new();
+    
+    let dir_entries = fs::read_dir(&images_dir)
+        .map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    for entry in dir_entries {
+        match entry {
+            Ok(entry) => {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        // Create relative path from src/assets/images
+                        let relative_path = format!("/src/assets/images/{}", name);
+                        files.push(FileInfo {
+                            name: name.to_string(),
+                            path: relative_path,
+                        });
+                        println!("Found file: {}", name);
+                    }
+                }
+            },
+            Err(e) => {
+                println!("Error reading entry: {}", e);
+                continue;
+            }
+        }
+    }
+
+    println!("Found {} files", files.len());
+    Ok(files)
 }
 
 #[command]
@@ -121,7 +177,7 @@ fn upload_files(files: Vec<FileData>) -> Result<String, String> {
 pub fn run() {
     println!("Starting Tauri application...");
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![upload_files, clear_images])
+        .invoke_handler(tauri::generate_handler![upload_files, clear_images, get_files])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
 }
