@@ -9,9 +9,10 @@
 </head>
 
 <body>
-	<input type="file" id="image-upload" name="image-upload" multiple>
-	<button onclick="clearImages()">Clear Images</button>
-	<button id="refresh-button">Refresh Images</button>
+	<div class="file-dropzone" id="dropzone">
+		<p>Drag and drop your files here or <span class="browse">browse</span></p>
+		<input type="file" id="fileInput" hidden>
+	</div>
 	<div id="image-gallery">
 	</div>
 	<script src="main.js"></script>

@@ -15,35 +15,7 @@
 	-webkit-text-size-adjust: 100%;
 }
 
-#image-gallery
-{
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-	gap: 20px;
-	padding: 20px;
-}
-
-.image-container
-{
-	text-align: center;
-}
-
-.image-container img
-{
-	width: 100%;
-	height: auto;
-	border-radius: 8px;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.image-container p
-{
-	margin-top: 8px;
-	font-size: 14px;
-	color: #333;
-}
-
-#refresh-button
+.button
 {
 	margin: 20px;
 	padding: 10px 20px;
@@ -54,7 +26,121 @@
 	cursor: pointer;
 }
 
-#refresh-button:hover
+.button:hover
 {
 	background-color: #0056b3;
+}
+
+.file-dropzone
+{
+	border: 2px dashed #d1d5db;
+	border-radius: 0.75rem;
+	padding: 2rem;
+	text-align: center;
+	flex-grow: 1;
+	margin-inline: auto;
+	max-width: 1850px;
+	transition: background-color 0.3s, border-color 0.3s;
+}
+
+.file-dropzone:hover
+{
+	background-color: #f9fafb;
+	/* Light gray background */
+	border-color: #4f46e5;
+	/* Indigo border */
+}
+
+.file-dropzone p
+{
+	margin: 0;
+	color: #6b7280;
+	/* Gray text */
+	font-size: 1rem;
+}
+
+.file-dropzone .browse
+{
+	color: #4f46e5;
+	cursor: pointer;
+	font-weight: bold;
+}
+
+.file-dropzone .browse:hover
+{
+	text-decoration: underline;
+}
+
+#image-gallery
+{
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	align-items: center;
+	margin-top: 2rem;
+	gap: 2rem;
+}
+
+.image-container
+{
+	position: relative;
+	display: inline-block;
+	width: 360px;
+	height: 202.5px;
+	overflow: hidden;
+	border-radius: 8px;
+	box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+	text-align: center;
+}
+
+.image-container img
+{
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transition: transform 0.3s ease, filter 0.3s ease;
+	border-radius: 8px;
+}
+
+.image-container .overlay
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.4);
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+	pointer-events: none;
+}
+
+.image-container .overlay .icon
+{
+	font-size: 1.5rem;
+	color: white;
+	transform: translateY(10px);
+	opacity: 0;
+	transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.image-container:hover img
+{
+	transform: scale(1.1);
+	filter: brightness(0.7);
+	cursor: pointer;
+}
+
+.image-container:hover .overlay
+{
+	opacity: 1;
+}
+
+.image-container:hover .overlay .icon
+{
+	transform: translateY(0);
+	opacity: 1;
 }

@@ -2,17 +2,27 @@ const { invoke } = window.__TAURI__.core;
 
 document.addEventListener("DOMContentLoaded", () =>
 {
-    const imageUploadElement = document.querySelector("#image-upload");
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const gallery = document.getElementById('image-gallery');
 
-    document.getElementById('refresh-button')?.addEventListener('click', loadImages);
+    dropzone.addEventListener('click', () => fileInput.click());
 
-    loadImages();
+    dropzone.addEventListener('dragover', (event) =>
+    {
+        event.preventDefault();
+        dropzone.style.backgroundColor = '#f3f4f6';
+    });
+    dropzone.addEventListener('dragleave', () =>
+    {
+        dropzone.style.backgroundColor = '';
+    });
 
-    imageUploadElement.addEventListener("change", async (event) =>
+    dropzone.addEventListener("drop", async (event) =>
     {
         event.preventDefault();
 
-        const files = imageUploadElement.files;
+        const files = event.dataTransfer.files;
 
         if (files.length === 0)
         {
@@ -39,6 +49,20 @@ document.addEventListener("DOMContentLoaded", () =>
             alert("Error uploading files: " + error);
         }
     });
+
+    const resizeObserver = new ResizeObserver((entries) =>
+    {
+        for (let entry of entries)
+        {
+            const galleryWidth = entry.contentRect.width;
+            dropzone.style.maxWidth = `${galleryWidth}px`;
+            console.log("running")
+        }
+    });
+
+    resizeObserver.observe(gallery);
+
+    loadImages();
 });
 
 async function loadImages()
@@ -58,8 +82,6 @@ async function loadImages()
         // Create image elements for each file
         files.forEach(file =>
         {
-            console.log(file);
-
             const imageContainer = document.createElement('div');
             imageContainer.className = 'image-container';
 
@@ -67,14 +89,20 @@ async function loadImages()
             img.src = './assets/images/' + file.name;
             img.alt = file.name;
 
-            const formattedString = file.name.replaceAll("_", " ");
-            const dotIndex = file.name.indexOf('.');
+            const imgOverlay = document.createElement('div');
+            imgOverlay.classList.add('overlay');
+            const imgSpan = document.createElement('span');
+            imgSpan.classList.add('icon');
+            const spanImg = document.createElement('img');
+            spanImg.src = '/assets/trash.png';
 
-            const name = document.createElement('p');
-            name.textContent = dotIndex != -1 ? formattedString.slice(0, dotIndex) : formattedString;
+            imgSpan.appendChild(spanImg)
+
+            imgOverlay.appendChild(imgSpan);
 
             imageContainer.appendChild(img);
-            imageContainer.appendChild(name);
+            imageContainer.appendChild(imgOverlay);
+
             gallery.appendChild(imageContainer);
         });
 
