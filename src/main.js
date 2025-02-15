@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () =>
 
     document.getElementById('refresh-button')?.addEventListener('click', loadImages);
 
-    // loadImages();
+    loadImages();
 
     imageUploadElement.addEventListener("change", async (event) =>
     {
@@ -20,14 +20,14 @@ document.addEventListener("DOMContentLoaded", () =>
             return;
         }
 
-        // Read files as an array of objects
         const fileArray = [];
         for (const file of files)
         {
-            const fileBuffer = await file.arrayBuffer(); // Read file data
+            const fileBuffer = await file.arrayBuffer();
+
             fileArray.push({
-                name: file.name,
-                data: Array.from(new Uint8Array(fileBuffer)), // Convert buffer to array for serialization
+                name: file.name.replaceAll(" ", "_"),
+                data: Array.from(new Uint8Array(fileBuffer)),
             });
         }
 
@@ -67,8 +67,11 @@ async function loadImages()
             img.src = './assets/images/' + file.name;
             img.alt = file.name;
 
+            const formattedString = file.name.replaceAll("_", " ");
+            const dotIndex = file.name.indexOf('.');
+
             const name = document.createElement('p');
-            name.textContent = file.name;
+            name.textContent = dotIndex != -1 ? formattedString.slice(0, dotIndex) : formattedString;
 
             imageContainer.appendChild(img);
             imageContainer.appendChild(name);
