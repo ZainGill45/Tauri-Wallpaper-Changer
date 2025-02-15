@@ -3,10 +3,12 @@ use winapi::um::winuser::{
 };
 use std::os::windows::ffi::OsStrExt;
 use rand::seq::SliceRandom;
+use platform_dirs::AppDirs;
 use std::time::Duration;
 use std::path::PathBuf;
 use tauri::command;
 use std::io::Write;
+use base64::encode;
 use std::thread;
 use std::fs;
 
@@ -19,30 +21,36 @@ struct FileData {
 #[derive(serde::Serialize, Debug)]
 struct FileInfo {
     name: String,
-    path: String,
+    data: String,
+}
+
+fn file_to_base64(file_path: &PathBuf) -> Result<String, String> {
+    let file_data = fs::read(file_path).map_err(|e| format!("Failed to read file {:?}: {}", file_path, e))?;
+    Ok(encode(file_data))
+}
+
+/// - In development (debug builds), it uses the parent directory of current_dir() to reach "src/assets/images".
+/// - In production, it uses Tauri’s app data directory (a writable location) and ensures an "images" subfolder exists.
+fn get_images_dir() -> Result<PathBuf, String> {
+    let app_dirs = AppDirs::new(Some("wallpaper-changer"), true)
+        .ok_or("Failed to determine application directories")?;
+    let images_dir = app_dirs.data_dir.join("images");
+
+    if !images_dir.exists() {
+        fs::create_dir_all(&images_dir)
+            .map_err(|e| format!("Failed to create images directory: {}", e))?;
+    }
+
+    Ok(images_dir)
 }
 
 #[command]
 fn get_files() -> Result<Vec<FileInfo>, String> {
     println!("Fetching list of images");
-    
-    // Get the current executable's directory
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
-    
-    // Navigate to the images directory
-    let images_dir = current_dir
-        .parent()
-        .ok_or("Could not find parent directory")?
-        .join("src")
-        .join("assets")
-        .join("images");
-    
+    let images_dir = get_images_dir()?;
     println!("Reading directory: {:?}", images_dir);
-
-    // Read the directory and collect file information
     let mut files = Vec::new();
-    
+
     let dir_entries = fs::read_dir(&images_dir)
         .map_err(|e| format!("Failed to read directory: {}", e))?;
 
@@ -52,13 +60,19 @@ fn get_files() -> Result<Vec<FileInfo>, String> {
                 let path = entry.path();
                 if path.is_file() {
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        // Create relative path from src/assets/images
-                        let relative_path = format!("/src/assets/images/{}", name);
-                        files.push(FileInfo {
-                            name: name.to_string(),
-                            path: relative_path,
-                        });
-                        println!("Found file: {}", name);
+                        match file_to_base64(&path) {
+                            Ok(encoded_data) => {
+                                files.push(FileInfo {
+                                    name: name.to_string(),
+                                    data: encoded_data,
+                                });
+                                println!("Encoded file: {}", name);
+                            }
+                            Err(err) => {
+                                println!("Error encoding file {}: {}", name, err);
+                                continue;
+                            }
+                        }
                     }
                 }
             },
@@ -73,30 +87,17 @@ fn get_files() -> Result<Vec<FileInfo>, String> {
     Ok(files)
 }
 
-#[tauri::command]
+#[command]
 fn delete_image(file_name: String) -> Result<String, String> {
-    println!("Attempting to delete image with path: {}", file_name);
-    
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
-
-    let upload_dir = current_dir
-        .parent()
-        .ok_or("Could not find parent directory")?
-        .join("src")
-        .join("assets")
-        .join("images");
-
-    println!("Upload directory: {:?}", upload_dir);
-
-    let full_path = upload_dir.join(file_name);
-
+    println!("Attempting to delete image: {}", file_name);
+    let images_dir = get_images_dir()?;
+    println!("Images directory: {:?}", images_dir);
+    let full_path = images_dir.join(&file_name);
     println!("Full file path to delete: {:?}", full_path);
 
     if full_path.is_file() {
         fs::remove_file(&full_path)
             .map_err(|e| format!("Failed to delete file {:?}: {}", full_path, e))?;
-
         println!("Successfully deleted: {:?}", full_path);
         Ok(format!("Successfully deleted file: {:?}", full_path))
     } else {
@@ -109,26 +110,12 @@ fn delete_image(file_name: String) -> Result<String, String> {
 #[command]
 fn delete_all_images() -> Result<String, String> {
     println!("Attempting to clear images directory");
-    
-    // Get the current executable's directory
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
-    
-    // Navigate to the images directory
-    let images_dir = current_dir
-        .parent()
-        .ok_or("Could not find parent directory")?
-        .join("src")
-        .join("assets")
-        .join("images");
-    
+    let images_dir = get_images_dir()?;
     println!("Clearing directory: {:?}", images_dir);
 
-    // Read the directory
     let dir_entries = fs::read_dir(&images_dir)
         .map_err(|e| format!("Failed to read directory: {}", e))?;
 
-    // Delete each file
     for entry in dir_entries {
         match entry {
             Ok(entry) => {
@@ -159,44 +146,22 @@ fn delete_all_images() -> Result<String, String> {
 #[command]
 fn upload_files(files: Vec<FileData>) -> Result<String, String> {
     println!("Received {} files for upload", files.len());
+    let images_dir = get_images_dir()?;
+    println!("Images directory: {:?}", images_dir);
     
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
-    
-    let upload_dir = current_dir
-        .parent()
-        .ok_or("Could not find parent directory")?
-        .join("src")
-        .join("assets")
-        .join("images");
-    
-    println!("Upload directory: {:?}", upload_dir);
-    
-    match fs::create_dir_all(&upload_dir) {
-        Ok(_) => println!("Upload directory created/verified successfully"),
-        Err(e) => {
-            let err_msg = format!("Failed to create upload directory: {}", e);
-            println!("{}", err_msg);
-            return Err(err_msg);
-        }
-    }
+    fs::create_dir_all(&images_dir)
+        .map_err(|e| format!("Failed to create images directory: {}", e))?;
     
     for file in files {
         println!("Processing file: {} (size: {} bytes)", file.name, file.data.len());
-        
-        let file_path = upload_dir.join(&file.name);
+        let file_path = images_dir.join(&file.name);
         println!("Writing to path: {:?}", file_path);
-        
+
         match fs::File::create(&file_path) {
             Ok(mut file_handle) => {
-                match file_handle.write_all(&file.data) {
-                    Ok(_) => println!("Successfully wrote file: {}", file.name),
-                    Err(e) => {
-                        let err_msg = format!("Failed to write file '{}': {}", file.name, e);
-                        println!("{}", err_msg);
-                        return Err(err_msg);
-                    }
-                }
+                file_handle.write_all(&file.data)
+                    .map_err(|e| format!("Failed to write file '{}': {}", file.name, e))?;
+                println!("Successfully wrote file: {}", file.name);
             },
             Err(e) => {
                 let err_msg = format!("Failed to create file '{}': {}", file.name, e);
@@ -205,24 +170,15 @@ fn upload_files(files: Vec<FileData>) -> Result<String, String> {
             }
         }
     }
-    
+
     println!("All files processed successfully");
     Ok("Files uploaded successfully!".to_string())
 }
 
 #[command]
 fn set_random_wallpaper() -> Result<String, String> {
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
-    
-    let upload_dir = current_dir
-        .parent()
-        .ok_or("Could not find parent directory")?
-        .join("src")
-        .join("assets")
-        .join("images");
-
-    let entries = fs::read_dir(upload_dir)
+    let images_dir = get_images_dir()?;
+    let entries = fs::read_dir(&images_dir)
         .map_err(|e| format!("Failed to read directory: {}", e))?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -268,19 +224,26 @@ fn start_wallpaper_update() {
             Ok(msg) => println!("{}", msg),
             Err(e) => eprintln!("Error setting wallpaper: {}", e),
         }
-        thread::sleep(Duration::from_secs(60)); // Wait for 1 minute
+        thread::sleep(Duration::from_secs(60));
     }
 }
 
 pub fn run() {
     println!("Starting Tauri application...");
 
+    // Start the wallpaper update loop in a background thread
     std::thread::spawn(|| {
         start_wallpaper_update();
     });
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![upload_files, delete_image, delete_all_images, get_files, set_random_wallpaper])
+        .invoke_handler(tauri::generate_handler![
+            upload_files,
+            delete_image,
+            delete_all_images,
+            get_files,
+            set_random_wallpaper
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
 }

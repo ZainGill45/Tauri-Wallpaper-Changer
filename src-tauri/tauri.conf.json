@@ -18,7 +18,11 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": false,
+        "scope": ["local"]
+      }
     }
   },
   "bundle": {
@@ -30,6 +34,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "resources": [
+      "../src/assets/images"
     ]
   }
 }

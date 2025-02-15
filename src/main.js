@@ -47,6 +47,8 @@ document.addEventListener("DOMContentLoaded", () =>
         {
             alert("Error uploading files: " + error);
         }
+
+        loadImages();
     });
     fileInput.addEventListener('change', async (event) =>
     {
@@ -78,11 +80,18 @@ document.addEventListener("DOMContentLoaded", () =>
         {
             alert("Error uploading files: " + error);
         }
+
+        loadImages();
     });
 
-    deleteAllImages.addEventListener('click', () =>
+    deleteAllImages.addEventListener('click', async () =>
     {
-        invoke('delete_all_images')
+        await invoke('delete_all_images');
+
+        imageElements = document.querySelectorAll(".image-container");
+
+        for (let i = 0; i < imageElements.length; i++)
+            imageElements[i].remove();
     });
     resetWallpaperCounter.addEventListener('click', () =>
     {
@@ -109,7 +118,7 @@ async function loadImages()
             imageContainer.className = 'image-container';
 
             const img = document.createElement('img');
-            img.src = './assets/images/' + file.name;
+            img.src = `data:image/png;base64,${file.data}`;
             img.alt = file.name;
 
             const imgOverlay = document.createElement('div');
@@ -119,8 +128,7 @@ async function loadImages()
             const spanImg = document.createElement('img');
             spanImg.src = '/assets/trash.png';
 
-            imgSpan.appendChild(spanImg)
-
+            imgSpan.appendChild(spanImg);
             imgOverlay.appendChild(imgSpan);
 
             imageContainer.appendChild(img);
@@ -128,7 +136,10 @@ async function loadImages()
 
             const appendedElement = gallery.appendChild(imageContainer);
 
-            appendedElement.addEventListener("click", () => { deleteImage(appendedElement.querySelector('img').alt) });
+            appendedElement.addEventListener("click", () =>
+            {
+                deleteImage(appendedElement.querySelector('img').alt, appendedElement);
+            });
         });
 
     } catch (error)
@@ -139,13 +150,23 @@ async function loadImages()
     }
 }
 
-async function deleteImage(fileName)
+async function deleteImage(fileName, element)
 {
     try
     {
-        await invoke('delete_image', { fileName: fileName });
+        const response = await invoke('delete_image', { fileName: fileName });
+
+        if (response && response.includes('Successfully deleted'))
+        {
+            alert('Image has been deleted successfully.');
+            element.remove();
+        } else
+        {
+            alert('Image not found.');
+        }
     } catch (error)
     {
-        alert("Error:", error);
+        alert('Error deleting image: ' + error);
     }
 }
+
