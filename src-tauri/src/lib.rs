@@ -249,7 +249,7 @@ fn start_wallpaper_update() {
             Ok(msg) => println!("{}", msg),
             Err(e) => eprintln!("Error setting wallpaper: {}", e),
         }
-        thread::sleep(Duration::from_secs(60));
+        thread::sleep(Duration::from_secs(600));
     }
 }
 
