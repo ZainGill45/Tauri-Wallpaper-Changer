@@ -1,16 +1,24 @@
-use winapi::um::winuser::{
-    SystemParametersInfoW, SPI_SETDESKWALLPAPER, SPIF_UPDATEINIFILE, SPIF_SENDWININICHANGE,
-};
-use std::os::windows::ffi::OsStrExt;
-use rand::seq::SliceRandom;
-use platform_dirs::AppDirs;
-use std::time::Duration;
-use std::path::PathBuf;
-use tauri::command;
-use std::io::Write;
 use base64::encode;
-use std::thread;
+use image::imageops::FilterType;
+use platform_dirs::AppDirs;
+use rand::seq::SliceRandom;
 use std::fs;
+use std::os::windows::ffi::OsStrExt;
+use std::path::PathBuf;
+use std::thread;
+use std::time::Duration;
+use tauri::command;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+};
+use winapi::um::winuser::{
+    SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
+};
+
+const MAX_IMAGE_SIZE: u32 = 4096;
+const THUMBNAIL_SIZE: u32 = 360;
+const MAX_BATCH_SIZE: usize = 32;
 
 #[derive(serde::Deserialize, Debug)]
 struct FileData {
@@ -22,15 +30,54 @@ struct FileData {
 struct FileInfo {
     name: String,
     data: String,
+    thumbnail: String,
 }
 
-fn file_to_base64(file_path: &PathBuf) -> Result<String, String> {
-    let file_data = fs::read(file_path).map_err(|e| format!("Failed to read file {:?}: {}", file_path, e))?;
-    Ok(encode(file_data))
+fn process_files_in_chunks<T, F>(items: Vec<T>, chunk_size: usize, mut f: F) -> Result<(), String>
+where
+    F: FnMut(&[T]) -> Result<(), String>,
+{
+    for chunk in items.chunks(chunk_size) {
+        f(chunk)?;
+    }
+    Ok(())
 }
 
-/// - In development (debug builds), it uses the parent directory of current_dir() to reach "src/assets/images".
-/// - In production, it uses Tauri’s app data directory (a writable location) and ensures an "images" subfolder exists.
+fn optimize_image(data: &[u8]) -> Result<Vec<u8>, String> {
+    let img = image::load_from_memory(data).map_err(|e| format!("Failed to load image: {}", e))?;
+
+    let img = if img.width() > MAX_IMAGE_SIZE || img.height() > MAX_IMAGE_SIZE {
+        let ratio = MAX_IMAGE_SIZE as f32 / img.width().max(img.height()) as f32;
+        let new_width = (img.width() as f32 * ratio) as u32;
+        let new_height = (img.height() as f32 * ratio) as u32;
+        img.resize(new_width, new_height, FilterType::Lanczos3)
+    } else {
+        img
+    };
+
+    let mut buffer = Vec::new();
+    let mut cursor = std::io::Cursor::new(&mut buffer);
+    img.write_to(&mut cursor, image::ImageFormat::Jpeg)
+        .map_err(|e| format!("Failed to encode image: {}", e))?;
+
+    Ok(buffer)
+}
+
+fn create_thumbnail(data: &[u8]) -> Result<String, String> {
+    let img =
+        image::load_from_memory(data).map_err(|e| format!("Failed to create thumbnail: {}", e))?;
+
+    let thumbnail = img.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, FilterType::Lanczos3);
+
+    let mut buffer = Vec::new();
+    let mut cursor = std::io::Cursor::new(&mut buffer);
+    thumbnail
+        .write_to(&mut cursor, image::ImageFormat::Jpeg)
+        .map_err(|e| format!("Failed to encode thumbnail: {}", e))?;
+
+    Ok(encode(&buffer))
+}
+
 fn get_images_dir() -> Result<PathBuf, String> {
     let app_dirs = AppDirs::new(Some("wallpaper-changer"), true)
         .ok_or("Failed to determine application directories")?;
@@ -45,45 +92,52 @@ fn get_images_dir() -> Result<PathBuf, String> {
 }
 
 #[command]
-fn get_files() -> Result<Vec<FileInfo>, String> {
-    println!("Fetching list of images");
+async fn upload_files(files: Vec<FileData>) -> Result<String, String> {
+    println!("Received {} files for upload", files.len());
     let images_dir = get_images_dir()?;
-    println!("Reading directory: {:?}", images_dir);
+
+    process_files_in_chunks(files, MAX_BATCH_SIZE, |chunk| {
+        for file in chunk {
+            let optimized_data = optimize_image(&file.data)?;
+            let file_path = images_dir.join(&file.name);
+
+            fs::write(&file_path, &optimized_data)
+                .map_err(|e| format!("Failed to write file '{}': {}", file.name, e))?;
+        }
+        Ok(())
+    })?;
+
+    Ok("Files uploaded successfully!".to_string())
+}
+
+#[command]
+async fn get_files() -> Result<Vec<FileInfo>, String> {
+    let images_dir = get_images_dir()?;
     let mut files = Vec::new();
 
-    let dir_entries = fs::read_dir(&images_dir)
-        .map_err(|e| format!("Failed to read directory: {}", e))?;
+    let entries: Vec<_> = fs::read_dir(&images_dir)
+        .map_err(|e| format!("Failed to read directory: {}", e))?
+        .filter_map(Result::ok)
+        .collect();
 
-    for entry in dir_entries {
-        match entry {
-            Ok(entry) => {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        match file_to_base64(&path) {
-                            Ok(encoded_data) => {
-                                files.push(FileInfo {
-                                    name: name.to_string(),
-                                    data: encoded_data,
-                                });
-                                println!("Encoded file: {}", name);
-                            }
-                            Err(err) => {
-                                println!("Error encoding file {}: {}", name, err);
-                                continue;
-                            }
-                        }
+    process_files_in_chunks(entries, MAX_BATCH_SIZE, |chunk| {
+        for entry in chunk {
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if let Ok(data) = fs::read(&path) {
+                    if let Ok(thumbnail) = create_thumbnail(&data) {
+                        files.push(FileInfo {
+                            name: name.to_string(),
+                            data: encode(&data),
+                            thumbnail,
+                        });
                     }
                 }
-            },
-            Err(e) => {
-                println!("Error reading entry: {}", e);
-                continue;
             }
         }
-    }
+        Ok(())
+    })?;
 
-    println!("Found {} files", files.len());
     Ok(files)
 }
 
@@ -113,8 +167,8 @@ fn delete_all_images() -> Result<String, String> {
     let images_dir = get_images_dir()?;
     println!("Clearing directory: {:?}", images_dir);
 
-    let dir_entries = fs::read_dir(&images_dir)
-        .map_err(|e| format!("Failed to read directory: {}", e))?;
+    let dir_entries =
+        fs::read_dir(&images_dir).map_err(|e| format!("Failed to read directory: {}", e))?;
 
     for entry in dir_entries {
         match entry {
@@ -130,7 +184,7 @@ fn delete_all_images() -> Result<String, String> {
                         }
                     }
                 }
-            },
+            }
             Err(e) => {
                 let err_msg = format!("Failed to read directory entry: {}", e);
                 println!("{}", err_msg);
@@ -141,38 +195,6 @@ fn delete_all_images() -> Result<String, String> {
 
     println!("Successfully cleared all files from images directory");
     Ok("Images directory cleared successfully!".to_string())
-}
-
-#[command]
-fn upload_files(files: Vec<FileData>) -> Result<String, String> {
-    println!("Received {} files for upload", files.len());
-    let images_dir = get_images_dir()?;
-    println!("Images directory: {:?}", images_dir);
-    
-    fs::create_dir_all(&images_dir)
-        .map_err(|e| format!("Failed to create images directory: {}", e))?;
-    
-    for file in files {
-        println!("Processing file: {} (size: {} bytes)", file.name, file.data.len());
-        let file_path = images_dir.join(&file.name);
-        println!("Writing to path: {:?}", file_path);
-
-        match fs::File::create(&file_path) {
-            Ok(mut file_handle) => {
-                file_handle.write_all(&file.data)
-                    .map_err(|e| format!("Failed to write file '{}': {}", file.name, e))?;
-                println!("Successfully wrote file: {}", file.name);
-            },
-            Err(e) => {
-                let err_msg = format!("Failed to create file '{}': {}", file.name, e);
-                println!("{}", err_msg);
-                return Err(err_msg);
-            }
-        }
-    }
-
-    println!("All files processed successfully");
-    Ok("Files uploaded successfully!".to_string())
 }
 
 #[command]
@@ -211,7 +233,10 @@ fn set_random_wallpaper() -> Result<String, String> {
             SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE,
         );
         if result == 0 {
-            return Err(format!("Failed to set wallpaper for path: {:?}", random_image));
+            return Err(format!(
+                "Failed to set wallpaper for path: {:?}",
+                random_image
+            ));
         }
     }
 
@@ -231,12 +256,23 @@ fn start_wallpaper_update() {
 pub fn run() {
     println!("Starting Tauri application...");
 
-    // Start the wallpaper update loop in a background thread
     std::thread::spawn(|| {
         start_wallpaper_update();
     });
 
     tauri::Builder::default()
+        .setup(|app| {
+            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&quit_i])?;
+
+            TrayIconBuilder::new()
+                .menu(&menu)
+                .show_menu_on_left_click(true)
+                .icon(app.default_window_icon().unwrap().clone())
+                .build(app)?;
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             upload_files,
             delete_image,
