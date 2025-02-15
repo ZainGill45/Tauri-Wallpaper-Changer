@@ -10,7 +10,7 @@ I created this app because I couldn't find a solution to randomly change the wal
 
 The app also supports managing wallpapers: uploading, deleting, and viewing images.
 
-Note that this project was created in one day, so performance can be an issue, especially with base64 encoding for a large number of images. If you plan to use a large image library, it’s recommended to manually copy and paste the images into the `AppData/wallpaper-changer/images` directory.
+Note that this project was created in one day, so performance is a big issue, especially with base64 encoding for a large number of images. If you plan to use a large image library, it’s recommended to manually copy and paste the images into the `AppData/wallpaper-changer/images` directory. It is also recommended to only have maximum of 100 images that total 256mb for optimal performance.
 
 ## Features
 
