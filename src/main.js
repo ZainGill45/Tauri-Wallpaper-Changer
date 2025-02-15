@@ -4,7 +4,6 @@ document.addEventListener("DOMContentLoaded", () =>
 {
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
-    const gallery = document.getElementById('image-gallery');
 
     dropzone.addEventListener('click', () => fileInput.click());
 
@@ -50,17 +49,37 @@ document.addEventListener("DOMContentLoaded", () =>
         }
     });
 
-    const resizeObserver = new ResizeObserver((entries) =>
+    fileInput.addEventListener('change', async (event) =>
     {
-        for (let entry of entries)
+        event.preventDefault();
+
+        const files = fileInput.files;
+
+        if (files.length === 0)
         {
-            const galleryWidth = entry.contentRect.width;
-            dropzone.style.maxWidth = `${galleryWidth}px`;
-            console.log("running")
+            alert("No files selected.");
+            return;
+        }
+
+        const fileArray = [];
+        for (const file of files)
+        {
+            const fileBuffer = await file.arrayBuffer();
+
+            fileArray.push({
+                name: file.name.replaceAll(" ", "_"),
+                data: Array.from(new Uint8Array(fileBuffer)),
+            });
+        }
+
+        try
+        {
+            const response = await invoke("upload_files", { files: fileArray });
+        } catch (error)
+        {
+            alert("Error uploading files: " + error);
         }
     });
-
-    resizeObserver.observe(gallery);
 
     loadImages();
 });
@@ -99,7 +118,9 @@ async function loadImages()
             imageContainer.appendChild(img);
             imageContainer.appendChild(imgOverlay);
 
-            gallery.appendChild(imageContainer);
+            const appendedElement = gallery.appendChild(imageContainer);
+
+            appendedElement.addEventListener("click", () => { deleteImage(appendedElement.querySelector('img').alt) });
         });
 
     } catch (error)
@@ -110,9 +131,13 @@ async function loadImages()
     }
 }
 
-function clearImages()
+async function deleteImage(fileName)
 {
-    invoke('clear_images')
-        .then(response => alert(response))
-        .catch(error => alert('Failed to clear images:', error));
+    try
+    {
+        await invoke("delete_image", { filePath: fileName });
+    } catch (error)
+    {
+        alert("Error:", error);
+    }
 }
