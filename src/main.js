@@ -50,7 +50,7 @@ async function loadImages()
 
 async function uploadFiles(files)
 {
-    const CHUNK_SIZE = 32;
+    const CHUNK_SIZE = 8;
     const totalFiles = files.length;
 
     let processed = 0;

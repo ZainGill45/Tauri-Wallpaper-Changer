@@ -18,7 +18,7 @@ use winapi::um::winuser::{
 
 const MAX_IMAGE_SIZE: u32 = 4096;
 const THUMBNAIL_SIZE: u32 = 360;
-const MAX_BATCH_SIZE: usize = 32;
+const MAX_BATCH_SIZE: usize = 8;
 
 #[derive(serde::Deserialize, Debug)]
 struct FileData {
