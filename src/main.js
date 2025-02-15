@@ -69,17 +69,13 @@ async function loadImages()
 {
     try
     {
-        // Show loading state
         const gallery = document.getElementById('image-gallery');
         gallery.innerHTML = 'Loading images...';
 
-        // Get images from Rust backend
         const files = await invoke('get_files');
 
-        // Clear loading message
         gallery.innerHTML = '';
 
-        // Create image elements for each file
         files.forEach(file =>
         {
             const imageContainer = document.createElement('div');
