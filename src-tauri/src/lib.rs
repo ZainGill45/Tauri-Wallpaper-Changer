@@ -232,9 +232,9 @@ fn start_wallpaper_update() {
 pub fn run() {
     println!("Starting Tauri application...");
 
-    std::thread::spawn(|| {
-        start_wallpaper_update();
-    });
+    // std::thread::spawn(|| {
+    //     start_wallpaper_update();
+    // });
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![upload_files, delete_image, get_files, set_random_wallpaper])
