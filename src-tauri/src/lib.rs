@@ -7,7 +7,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
-use tauri::command;
+use tauri::{command, Manager};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -263,15 +263,39 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&quit_i])?;
+            let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+
+            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
             TrayIconBuilder::new()
                 .menu(&menu)
                 .show_menu_on_left_click(true)
                 .icon(app.default_window_icon().unwrap().clone())
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => {
+                        println!("quit menu item was clicked");
+                        app.exit(0);
+                    }
+                    "show" => {
+                        println!("show menu item was clicked");
+                        // Show the window when the tray icon is clicked
+                        app.get_webview_window("main").unwrap().show().unwrap();
+                    }
+                    _ => {
+                        println!("menu item {:?} not handled", event.id);
+                    }
+                })
                 .build(app)?;
 
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                println!("Hiding window and minizing to tray");
+                window.hide().unwrap();
+                api.prevent_close();
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             upload_files,
