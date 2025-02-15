@@ -42,10 +42,3 @@ Note that this project was created in one day, so performance is a big issue, es
 
 - [Rust](https://www.rust-lang.org/learn/get-started) installed on your machine.
 - [Node.js](https://nodejs.org/) (for Tauri setup).
-
-### Steps
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/wallpaper-changer-app.git
-   cd wallpaper-changer-app
