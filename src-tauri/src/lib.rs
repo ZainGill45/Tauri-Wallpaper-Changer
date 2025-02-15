@@ -107,6 +107,56 @@ fn delete_image(file_name: String) -> Result<String, String> {
 }
 
 #[command]
+fn delete_all_images() -> Result<String, String> {
+    println!("Attempting to clear images directory");
+    
+    // Get the current executable's directory
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    
+    // Navigate to the images directory
+    let images_dir = current_dir
+        .parent()
+        .ok_or("Could not find parent directory")?
+        .join("src")
+        .join("assets")
+        .join("images");
+    
+    println!("Clearing directory: {:?}", images_dir);
+
+    // Read the directory
+    let dir_entries = fs::read_dir(&images_dir)
+        .map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    // Delete each file
+    for entry in dir_entries {
+        match entry {
+            Ok(entry) => {
+                let path = entry.path();
+                if path.is_file() {
+                    match fs::remove_file(&path) {
+                        Ok(_) => println!("Successfully deleted: {:?}", path),
+                        Err(e) => {
+                            let err_msg = format!("Failed to delete file {:?}: {}", path, e);
+                            println!("{}", err_msg);
+                            return Err(err_msg);
+                        }
+                    }
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to read directory entry: {}", e);
+                println!("{}", err_msg);
+                return Err(err_msg);
+            }
+        }
+    }
+
+    println!("Successfully cleared all files from images directory");
+    Ok("Images directory cleared successfully!".to_string())
+}
+
+#[command]
 fn upload_files(files: Vec<FileData>) -> Result<String, String> {
     println!("Received {} files for upload", files.len());
     
@@ -162,11 +212,9 @@ fn upload_files(files: Vec<FileData>) -> Result<String, String> {
 
 #[command]
 fn set_random_wallpaper() -> Result<String, String> {
-    // Get the current working directory
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
     
-    // Define the path to the upload directory
     let upload_dir = current_dir
         .parent()
         .ok_or("Could not find parent directory")?
@@ -174,7 +222,6 @@ fn set_random_wallpaper() -> Result<String, String> {
         .join("assets")
         .join("images");
 
-    // Read and filter files in the upload directory for jpg and png images
     let entries = fs::read_dir(upload_dir)
         .map_err(|e| format!("Failed to read directory: {}", e))?
         .filter_map(Result::ok)
@@ -190,19 +237,16 @@ fn set_random_wallpaper() -> Result<String, String> {
         return Err("No images found in the upload directory".to_string());
     }
 
-    // Pick a random image from the list
     let random_image = entries
         .choose(&mut rand::thread_rng())
         .ok_or("Failed to pick a random image")?;
 
-    // Convert the image path to a wide string (UTF-16) with a null terminator.
     let path = random_image.to_str().ok_or("Invalid file path")?;
     let wide_path: Vec<u16> = std::ffi::OsStr::new(path)
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
 
-    // Attempt to set the wallpaper using the Windows API
     unsafe {
         let result = SystemParametersInfoW(
             SPI_SETDESKWALLPAPER,
@@ -218,7 +262,6 @@ fn set_random_wallpaper() -> Result<String, String> {
     Ok(format!("Successfully set wallpaper to: {:?}", random_image))
 }
 
-// Start a background task to update the wallpaper every minute
 fn start_wallpaper_update() {
     loop {
         match set_random_wallpaper() {
@@ -232,12 +275,12 @@ fn start_wallpaper_update() {
 pub fn run() {
     println!("Starting Tauri application...");
 
-    // std::thread::spawn(|| {
-    //     start_wallpaper_update();
-    // });
+    std::thread::spawn(|| {
+        start_wallpaper_update();
+    });
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![upload_files, delete_image, get_files, set_random_wallpaper])
+        .invoke_handler(tauri::generate_handler![upload_files, delete_image, delete_all_images, get_files, set_random_wallpaper])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
 }

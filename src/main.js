@@ -3,10 +3,11 @@ const { invoke } = window.__TAURI__.core;
 document.addEventListener("DOMContentLoaded", () =>
 {
     const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('fileInput');
+    const fileInput = document.getElementById('file-input');
+    const deleteAllImages = document.getElementById('delete-all-images-button');
+    const resetWallpaperCounter = document.getElementById('reset-wallpaper-counter-button');
 
     dropzone.addEventListener('click', () => fileInput.click());
-
     dropzone.addEventListener('dragover', (event) =>
     {
         event.preventDefault();
@@ -16,7 +17,6 @@ document.addEventListener("DOMContentLoaded", () =>
     {
         dropzone.style.backgroundColor = '';
     });
-
     dropzone.addEventListener("drop", async (event) =>
     {
         event.preventDefault();
@@ -42,13 +42,12 @@ document.addEventListener("DOMContentLoaded", () =>
 
         try
         {
-            const response = await invoke("upload_files", { files: fileArray });
+            await invoke("upload_files", { files: fileArray });
         } catch (error)
         {
             alert("Error uploading files: " + error);
         }
     });
-
     fileInput.addEventListener('change', async (event) =>
     {
         event.preventDefault();
@@ -79,6 +78,15 @@ document.addEventListener("DOMContentLoaded", () =>
         {
             alert("Error uploading files: " + error);
         }
+    });
+
+    deleteAllImages.addEventListener('click', () =>
+    {
+        invoke('delete_all_images')
+    });
+    resetWallpaperCounter.addEventListener('click', () =>
+    {
+        invoke('set_random_wallpaper');
     });
 
     loadImages();
@@ -135,7 +143,7 @@ async function deleteImage(fileName)
 {
     try
     {
-        await invoke("delete_image", { fileName: fileName });
+        await invoke('delete_image', { fileName: fileName });
     } catch (error)
     {
         alert("Error:", error);
