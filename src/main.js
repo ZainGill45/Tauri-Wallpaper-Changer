@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () =>
 
         try
         {
-            const response = await invoke("upload_files", { files: fileArray });
+            await invoke("upload_files", { files: fileArray });
         } catch (error)
         {
             alert("Error uploading files: " + error);
@@ -135,7 +135,7 @@ async function deleteImage(fileName)
 {
     try
     {
-        await invoke("delete_image", { filePath: fileName });
+        await invoke("delete_image", { fileName: fileName });
     } catch (error)
     {
         alert("Error:", error);

@@ -1,5 +1,13 @@
+use winapi::um::winuser::{
+    SystemParametersInfoW, SPI_SETDESKWALLPAPER, SPIF_UPDATEINIFILE, SPIF_SENDWININICHANGE,
+};
+use std::os::windows::ffi::OsStrExt;
+use rand::seq::SliceRandom;
+use std::time::Duration;
+use std::path::PathBuf;
 use tauri::command;
 use std::io::Write;
+use std::thread;
 use std::fs;
 
 #[derive(serde::Deserialize, Debug)]
@@ -66,8 +74,8 @@ fn get_files() -> Result<Vec<FileInfo>, String> {
 }
 
 #[tauri::command]
-fn delete_image(file_path: String) -> Result<String, String> {
-    println!("Attempting to delete image with path: {}", file_path);
+fn delete_image(file_name: String) -> Result<String, String> {
+    println!("Attempting to delete image with path: {}", file_name);
     
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
@@ -81,7 +89,7 @@ fn delete_image(file_path: String) -> Result<String, String> {
 
     println!("Upload directory: {:?}", upload_dir);
 
-    let full_path = upload_dir.join(file_path);
+    let full_path = upload_dir.join(file_name);
 
     println!("Full file path to delete: {:?}", full_path);
 
@@ -152,10 +160,84 @@ fn upload_files(files: Vec<FileData>) -> Result<String, String> {
     Ok("Files uploaded successfully!".to_string())
 }
 
+#[command]
+fn set_random_wallpaper() -> Result<String, String> {
+    // Get the current working directory
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    
+    // Define the path to the upload directory
+    let upload_dir = current_dir
+        .parent()
+        .ok_or("Could not find parent directory")?
+        .join("src")
+        .join("assets")
+        .join("images");
+
+    // Read and filter files in the upload directory for jpg and png images
+    let entries = fs::read_dir(upload_dir)
+        .map_err(|e| format!("Failed to read directory: {}", e))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .map(|ext| ext.eq_ignore_ascii_case("jpg") || ext.eq_ignore_ascii_case("png"))
+                .unwrap_or(false)
+        })
+        .collect::<Vec<PathBuf>>();
+
+    if entries.is_empty() {
+        return Err("No images found in the upload directory".to_string());
+    }
+
+    // Pick a random image from the list
+    let random_image = entries
+        .choose(&mut rand::thread_rng())
+        .ok_or("Failed to pick a random image")?;
+
+    // Convert the image path to a wide string (UTF-16) with a null terminator.
+    let path = random_image.to_str().ok_or("Invalid file path")?;
+    let wide_path: Vec<u16> = std::ffi::OsStr::new(path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    // Attempt to set the wallpaper using the Windows API
+    unsafe {
+        let result = SystemParametersInfoW(
+            SPI_SETDESKWALLPAPER,
+            0,
+            wide_path.as_ptr() as *mut _,
+            SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE,
+        );
+        if result == 0 {
+            return Err(format!("Failed to set wallpaper for path: {:?}", random_image));
+        }
+    }
+
+    Ok(format!("Successfully set wallpaper to: {:?}", random_image))
+}
+
+// Start a background task to update the wallpaper every minute
+fn start_wallpaper_update() {
+    loop {
+        match set_random_wallpaper() {
+            Ok(msg) => println!("{}", msg),
+            Err(e) => eprintln!("Error setting wallpaper: {}", e),
+        }
+        thread::sleep(Duration::from_secs(60)); // Wait for 1 minute
+    }
+}
+
 pub fn run() {
     println!("Starting Tauri application...");
+
+    std::thread::spawn(|| {
+        start_wallpaper_update();
+    });
+
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![upload_files, delete_image, get_files])
+        .invoke_handler(tauri::generate_handler![upload_files, delete_image, get_files, set_random_wallpaper])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
 }
