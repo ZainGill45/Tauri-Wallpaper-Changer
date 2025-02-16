@@ -2587,6 +2587,16 @@ checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 
 [[package]]
 name = "open"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2078c0039e6a54a0c42c28faa984e115fb4c2d5bf2208f77d1961002df8576f8"
+dependencies = [
+ "pathdiff",
+ "windows-sys 0.42.0",
+]
+
+[[package]]
+name = "open"
 version = "5.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2483562e62ea94312f3576a7aca397306df7990b8d89033e18766744377ef95"
@@ -4020,7 +4030,7 @@ dependencies = [
  "glob",
  "objc2-app-kit",
  "objc2-foundation",
- "open",
+ "open 5.3.2",
  "schemars",
  "serde",
  "serde_json",
@@ -4637,6 +4647,7 @@ version = "1.0.0"
 dependencies = [
  "base64 0.13.1",
  "image",
+ "open 3.2.0",
  "platform-dirs",
  "rand 0.8.5",
  "serde",
@@ -5003,6 +5014,21 @@ checksum = "4cd9b125c486025df0eabcb585e62173c6c9eddcec5d117d3b6e8c30e2ee4d10"
 dependencies = [
  "windows-result",
  "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "windows-sys"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a3e1820f08b8513f676f7ab6c1f99ff312fb97b553d30ff4dd86f9f15728aa7"
+dependencies = [
+ "windows_aarch64_gnullvm 0.42.2",
+ "windows_aarch64_msvc 0.42.2",
+ "windows_i686_gnu 0.42.2",
+ "windows_i686_msvc 0.42.2",
+ "windows_x86_64_gnu 0.42.2",
+ "windows_x86_64_gnullvm 0.42.2",
+ "windows_x86_64_msvc 0.42.2",
 ]
 
 [[package]]

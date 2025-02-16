@@ -1,12 +1,34 @@
 const { invoke } = window.__TAURI__.core;
 
+const maxFilesToRender = 100;
+
 async function loadImages()
 {
     try
     {
         const gallery = document.getElementById('image-gallery');
-        gallery.innerHTML = 'Loading images...';
+        const fileCount = await invoke('count_files');
 
+        gallery.innerHTML = '';
+
+        if (fileCount > maxFilesToRender)
+        {
+            const imageDirButton = document.createElement('button');
+            imageDirButton.textContent = 'Open Image Directory';
+            imageDirButton.addEventListener('click', () => { invoke('open_images_directory') })
+
+            gallery.innerHTML = '';
+            gallery.appendChild(imageDirButton);
+
+            const buttonWrapper = document.querySelector('.button-wrapper');
+            buttonWrapper.style.marginBottom = '1rem';
+
+            alert(`You have ${fileCount} files a maximum of ${maxFilesToRender} files are supported for rendering. If you would like to view the source file directory click the above. The desktop wallpaper switching  functionily will still function no matter the number of files present in the files directory.`)
+
+            return;
+        }
+
+        gallery.innerHTML = 'Loading images...';
         const files = await invoke('get_files');
         gallery.innerHTML = '';
 

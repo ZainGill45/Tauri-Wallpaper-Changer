@@ -111,6 +111,26 @@ async fn upload_files(files: Vec<FileData>) -> Result<String, String> {
 }
 
 #[command]
+fn count_files() -> Result<usize, String> {
+    let images_dir = get_images_dir()?;
+
+    let file_count = fs::read_dir(&images_dir)
+        .map_err(|e| format!("Failed to read images directory: {}", e))?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().is_file())
+        .count();
+
+    Ok(file_count)
+}
+
+#[command]
+fn open_images_directory() -> Result<String, String> {
+    let images_dir = get_images_dir()?;
+    open::that(&images_dir).map_err(|e| format!("Failed to open images directory: {}", e))?;
+    Ok(format!("Opened images directory: {:?}", images_dir))
+}
+
+#[command]
 async fn get_files() -> Result<Vec<FileInfo>, String> {
     let images_dir = get_images_dir()?;
     let mut files = Vec::new();
@@ -301,6 +321,8 @@ pub fn run() {
             upload_files,
             delete_image,
             delete_all_images,
+            count_files,
+            open_images_directory,
             get_files,
             set_random_wallpaper
         ])
