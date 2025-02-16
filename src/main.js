@@ -28,6 +28,12 @@ async function loadImages()
             return;
         }
 
+        if (fileCount <= 0)
+        {
+            gallery.innerHTML = 'You currently have no files in the image directory. Upload files by dragging and dropping into the area above';
+            return;
+        }
+
         gallery.innerHTML = 'Loading images...';
         const files = await invoke('get_files');
         gallery.innerHTML = '';
@@ -72,7 +78,7 @@ async function loadImages()
 
 async function uploadFiles(files)
 {
-    const CHUNK_SIZE = 8;
+    const CHUNK_SIZE = 16;
     const totalFiles = files.length;
 
     let processed = 0;
