@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Wallpaper Changer",
+  "productName": "Tauri Wallpaper Changer",
   "version": "0.1.0",
   "identifier": "com.wallpaper-changer.app",
   "build": {

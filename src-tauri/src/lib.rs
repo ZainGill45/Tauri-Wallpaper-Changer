@@ -276,7 +276,7 @@ fn start_wallpaper_update() {
 pub fn run() {
     println!("Starting Tauri application...");
 
-    std::thread::spawn(|| {
+    thread::spawn(|| {
         start_wallpaper_update();
     });
 
@@ -311,7 +311,7 @@ pub fn run() {
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                println!("Hiding window and minizing to tray");
+                println!("Hiding window and minimizing to tray");
                 window.hide().unwrap();
                 api.prevent_close();
             }

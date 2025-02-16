@@ -13,18 +13,8 @@ async function loadImages()
 
         if (fileCount > maxFilesToRender)
         {
-            const imageDirButton = document.createElement('button');
-            imageDirButton.textContent = 'Open Image Directory';
-            imageDirButton.addEventListener('click', () => { invoke('open_images_directory') })
-
-            gallery.innerHTML = '';
-            gallery.appendChild(imageDirButton);
-
-            const buttonWrapper = document.querySelector('.button-wrapper');
-            buttonWrapper.style.marginBottom = '1rem';
-
-            alert(`You have ${fileCount} files a maximum of ${maxFilesToRender} files are supported for rendering. If you would like to view the source file directory click the above. The desktop wallpaper switching  functionily will still function no matter the number of files present in the files directory.`)
-
+            gallery.innerHTML = `<p>You have ${fileCount} files a maximum of ${maxFilesToRender} is the maximum number of files are supported for rendering currently. 
+                                 <br>The desktop wallpaper switching functionily will still function no matter the number of files present in the files directory.</p>`;
             return;
         }
 
@@ -135,6 +125,7 @@ document.addEventListener("DOMContentLoaded", () =>
     const fileInput = document.getElementById('file-input');
     const deleteAllImages = document.getElementById('delete-all-images-button');
     const resetWallpaperCounter = document.getElementById('reset-wallpaper-counter-button');
+    const openImageDirectory = document.getElementById('open-image-directory-button');
 
     dropzone.addEventListener('click', () => fileInput.click());
     dropzone.addEventListener('dragover', (event) =>
@@ -183,6 +174,10 @@ document.addEventListener("DOMContentLoaded", () =>
     resetWallpaperCounter.addEventListener('click', () =>
     {
         invoke('set_random_wallpaper');
+    });
+    openImageDirectory.addEventListener('click', () =>
+    {
+        invoke('open_images_directory');
     });
 
     loadImages();

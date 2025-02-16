@@ -62,7 +62,7 @@ button:hover
 {
 	border: 2px dashed #d1d5db;
 	border-radius: 12px;
-	padding: 2rem;
+	padding: 3rem;
 	text-align: center;
 	flex-grow: 1;
 	margin-inline: auto;
@@ -111,6 +111,7 @@ button:hover
 	flex-wrap: wrap;
 	justify-content: center;
 	align-items: center;
+	text-align: center;
 	gap: 2rem;
 }
 
