@@ -64,8 +64,8 @@
 			visibility: hidden;
 			transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
 			z-index: 9999;
-			backdrop-filter: blur(5px);
-			-webkit-backdrop-filter: blur(5px);
+			backdrop-filter: blur(2px);
+			-webkit-backdrop-filter: blur(2px);
 		}
 
 		.loading-overlay.active {
@@ -74,10 +74,10 @@
 		}
 
 		.loading-spinner {
-			width: 50px;
-			height: 50px;
+			width: 64px;
+			height: 64px;
 			border: 3px solid #f3f3f3;
-			border-top: 3px solid #3498db;
+			border-top: 3px solid #4f46e5;
 			border-radius: 50%;
 			animation: spin 1s linear infinite;
 		}
@@ -133,8 +133,9 @@
 		.button-wrapper {
 			display: flex;
 			justify-content: center;
-			margin-block: 1rem;
-			gap: 2rem;
+			margin-top: 0.6rem;
+			margin-bottom: 1rem;
+			gap: 1rem;
 		}
 
 		.image-gallery {
@@ -143,7 +144,7 @@
 			justify-content: center;
 			align-items: center;
 			text-align: center;
-			gap: 2rem;
+			gap: 1rem;
 		}
 
 		.image-container {

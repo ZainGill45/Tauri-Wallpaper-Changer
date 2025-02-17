@@ -125,7 +125,6 @@ async function deleteImage(fileName, element)
 
         if (response && response.includes('Successfully deleted'))
         {
-            alert('Image has been deleted successfully.');
             element.remove();
         } else
         {
