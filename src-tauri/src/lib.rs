@@ -1,8 +1,8 @@
 use base64::encode;
-use image::imageops::FilterType;
 use platform_dirs::AppDirs;
 use rand::seq::SliceRandom;
-use std::fs;
+use std::fs as std_fs;
+use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::thread;
@@ -12,13 +12,10 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
+use tokio::fs as tokio_fs;
 use winapi::um::winuser::{
     SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
 };
-
-const MAX_IMAGE_SIZE: u32 = 4096;
-const THUMBNAIL_SIZE: u32 = 360;
-const MAX_BATCH_SIZE: usize = 16;
 
 #[derive(serde::Deserialize, Debug)]
 struct FileData {
@@ -30,52 +27,6 @@ struct FileData {
 struct FileInfo {
     name: String,
     data: String,
-    thumbnail: String,
-}
-
-fn process_files_in_chunks<T, F>(items: Vec<T>, chunk_size: usize, mut f: F) -> Result<(), String>
-where
-    F: FnMut(&[T]) -> Result<(), String>,
-{
-    for chunk in items.chunks(chunk_size) {
-        f(chunk)?;
-    }
-    Ok(())
-}
-
-fn optimize_image(data: &[u8]) -> Result<Vec<u8>, String> {
-    let img = image::load_from_memory(data).map_err(|e| format!("Failed to load image: {}", e))?;
-
-    let img = if img.width() > MAX_IMAGE_SIZE || img.height() > MAX_IMAGE_SIZE {
-        let ratio = MAX_IMAGE_SIZE as f32 / img.width().max(img.height()) as f32;
-        let new_width = (img.width() as f32 * ratio) as u32;
-        let new_height = (img.height() as f32 * ratio) as u32;
-        img.resize(new_width, new_height, FilterType::Lanczos3)
-    } else {
-        img
-    };
-
-    let mut buffer = Vec::new();
-    let mut cursor = std::io::Cursor::new(&mut buffer);
-    img.write_to(&mut cursor, image::ImageFormat::Jpeg)
-        .map_err(|e| format!("Failed to encode image: {}", e))?;
-
-    Ok(buffer)
-}
-
-fn create_thumbnail(data: &[u8]) -> Result<String, String> {
-    let img =
-        image::load_from_memory(data).map_err(|e| format!("Failed to create thumbnail: {}", e))?;
-
-    let thumbnail = img.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, FilterType::Lanczos3);
-
-    let mut buffer = Vec::new();
-    let mut cursor = std::io::Cursor::new(&mut buffer);
-    thumbnail
-        .write_to(&mut cursor, image::ImageFormat::Jpeg)
-        .map_err(|e| format!("Failed to encode thumbnail: {}", e))?;
-
-    Ok(encode(&buffer))
 }
 
 fn get_images_dir() -> Result<PathBuf, String> {
@@ -84,47 +35,61 @@ fn get_images_dir() -> Result<PathBuf, String> {
     let images_dir = app_dirs.data_dir.join("images");
 
     if !images_dir.exists() {
-        fs::create_dir_all(&images_dir)
+        std_fs::create_dir_all(&images_dir)
             .map_err(|e| format!("Failed to create images directory: {}", e))?;
     }
 
     Ok(images_dir)
 }
 
+async fn file_to_base64(file_path: &PathBuf) -> Result<String, String> {
+    let file_data = tokio_fs::read(file_path)
+        .await
+        .map_err(|e| format!("Failed to read file {:?}: {}", file_path, e))?;
+    Ok(encode(file_data))
+}
+
 #[command]
 async fn upload_files(files: Vec<FileData>) -> Result<String, String> {
     println!("Received {} files for upload", files.len());
-    let images_dir = get_images_dir()?;
 
-    process_files_in_chunks(files, MAX_BATCH_SIZE, |chunk| {
-        for file in chunk {
-            let optimized_data = optimize_image(&file.data)?;
-            let file_path = images_dir.join(&file.name);
+    // Handle the Result from `get_images_dir()`
+    let images_dir =
+        get_images_dir().map_err(|e| format!("Failed to get images directory: {}", e))?;
+    println!("Images directory: {:?}", images_dir);
 
-            fs::write(&file_path, &optimized_data)
-                .map_err(|e| format!("Failed to write file '{}': {}", file.name, e))?;
+    for file in files {
+        println!(
+            "Processing file: {} (size: {} bytes)",
+            file.name,
+            file.data.len()
+        );
+
+        // Construct the file path using `PathBuf::join`
+        let file_path = images_dir.join(&file.name);
+        println!("Writing to path: {:?}", file_path);
+
+        match std_fs::File::create(&file_path) {
+            Ok(mut file_handle) => {
+                file_handle
+                    .write_all(&file.data)
+                    .map_err(|e| format!("Failed to write file '{}': {}", file.name, e))?;
+                println!("Successfully wrote file: {}", file.name);
+            }
+            Err(e) => {
+                let err_msg = format!("Failed to create file '{}': {}", file.name, e);
+                println!("{}", err_msg);
+                return Err(err_msg);
+            }
         }
-        Ok(())
-    })?;
+    }
 
+    println!("All files processed successfully");
     Ok("Files uploaded successfully!".to_string())
 }
 
 #[command]
-fn count_files() -> Result<usize, String> {
-    let images_dir = get_images_dir()?;
-
-    let file_count = fs::read_dir(&images_dir)
-        .map_err(|e| format!("Failed to read images directory: {}", e))?
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().is_file())
-        .count();
-
-    Ok(file_count)
-}
-
-#[command]
-fn open_images_directory() -> Result<String, String> {
+async fn open_images_directory() -> Result<String, String> {
     let images_dir = get_images_dir()?;
     open::that(&images_dir).map_err(|e| format!("Failed to open images directory: {}", e))?;
     Ok(format!("Opened images directory: {:?}", images_dir))
@@ -132,37 +97,51 @@ fn open_images_directory() -> Result<String, String> {
 
 #[command]
 async fn get_files() -> Result<Vec<FileInfo>, String> {
-    let images_dir = get_images_dir()?;
+    println!("Fetching list of images");
+
+    // Handle the `get_images_dir` Result
+    let images_dir =
+        get_images_dir().map_err(|e| format!("Failed to get images directory: {}", e))?;
+    println!("Reading directory: {:?}", images_dir);
+
     let mut files = Vec::new();
 
-    let entries: Vec<_> = fs::read_dir(&images_dir)
-        .map_err(|e| format!("Failed to read directory: {}", e))?
-        .filter_map(Result::ok)
-        .collect();
+    // Use `tokio::fs::read_dir` for async directory reading
+    let mut dir_entries = tokio_fs::read_dir(&images_dir)
+        .await
+        .map_err(|e| format!("Failed to read directory: {}", e))?;
 
-    process_files_in_chunks(entries, MAX_BATCH_SIZE, |chunk| {
-        for entry in chunk {
-            let path = entry.path();
+    while let Some(entry) = dir_entries
+        .next_entry()
+        .await
+        .map_err(|e| format!("Failed to read directory entry: {}", e))?
+    {
+        let path = entry.path();
+        if path.is_file() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if let Ok(data) = fs::read(&path) {
-                    if let Ok(thumbnail) = create_thumbnail(&data) {
+                match file_to_base64(&path).await {
+                    Ok(encoded_data) => {
                         files.push(FileInfo {
                             name: name.to_string(),
-                            data: encode(&data),
-                            thumbnail,
+                            data: encoded_data,
                         });
+                        println!("Encoded file: {}", name);
+                    }
+                    Err(err) => {
+                        println!("Error encoding file {}: {}", name, err);
+                        continue;
                     }
                 }
             }
         }
-        Ok(())
-    })?;
+    }
 
+    println!("Found {} files", files.len());
     Ok(files)
 }
 
 #[command]
-fn delete_image(file_name: String) -> Result<String, String> {
+async fn delete_image(file_name: String) -> Result<String, String> {
     println!("Attempting to delete image: {}", file_name);
     let images_dir = get_images_dir()?;
     println!("Images directory: {:?}", images_dir);
@@ -170,7 +149,7 @@ fn delete_image(file_name: String) -> Result<String, String> {
     println!("Full file path to delete: {:?}", full_path);
 
     if full_path.is_file() {
-        fs::remove_file(&full_path)
+        std_fs::remove_file(&full_path)
             .map_err(|e| format!("Failed to delete file {:?}: {}", full_path, e))?;
         println!("Successfully deleted: {:?}", full_path);
         Ok(format!("Successfully deleted file: {:?}", full_path))
@@ -182,20 +161,20 @@ fn delete_image(file_name: String) -> Result<String, String> {
 }
 
 #[command]
-fn delete_all_images() -> Result<String, String> {
+async fn delete_all_images() -> Result<String, String> {
     println!("Attempting to clear images directory");
     let images_dir = get_images_dir()?;
     println!("Clearing directory: {:?}", images_dir);
 
     let dir_entries =
-        fs::read_dir(&images_dir).map_err(|e| format!("Failed to read directory: {}", e))?;
+        std_fs::read_dir(&images_dir).map_err(|e| format!("Failed to read directory: {}", e))?;
 
     for entry in dir_entries {
         match entry {
             Ok(entry) => {
                 let path = entry.path();
                 if path.is_file() {
-                    match fs::remove_file(&path) {
+                    match std_fs::remove_file(&path) {
                         Ok(_) => println!("Successfully deleted: {:?}", path),
                         Err(e) => {
                             let err_msg = format!("Failed to delete file {:?}: {}", path, e);
@@ -220,7 +199,7 @@ fn delete_all_images() -> Result<String, String> {
 #[command]
 fn set_random_wallpaper() -> Result<String, String> {
     let images_dir = get_images_dir()?;
-    let entries = fs::read_dir(&images_dir)
+    let entries = std_fs::read_dir(&images_dir)
         .map_err(|e| format!("Failed to read directory: {}", e))?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -321,7 +300,6 @@ pub fn run() {
             upload_files,
             delete_image,
             delete_all_images,
-            count_files,
             open_images_directory,
             get_files,
             set_random_wallpaper

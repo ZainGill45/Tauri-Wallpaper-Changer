@@ -1,32 +1,50 @@
-const { invoke } = window.__TAURI__.core;
+class LoadingOverlay
+{
+    constructor()
+    {
+        this.overlay = document.querySelector('.loading-overlay');
+        this.isActive = false;
 
-const maxFilesToRender = 100;
+        this.overlay.addEventListener('click', (e) =>
+        {
+            e.stopPropagation();
+        });
+
+        document.addEventListener('keydown', (e) =>
+        {
+            if (this.isActive)
+            {
+                e.preventDefault();
+            }
+        });
+    }
+
+    show()
+    {
+        this.isActive = true;
+        document.body.classList.add('no-scroll');
+        this.overlay.classList.add('active');
+    }
+
+    hide()
+    {
+        this.isActive = false;
+        document.body.classList.remove('no-scroll');
+        this.overlay.classList.remove('active');
+    }
+}
+
+const { invoke } = window.__TAURI__.core;
+const loader = new LoadingOverlay();
 
 async function loadImages()
 {
+    loader.show();
+
     try
     {
-        const gallery = document.getElementById('image-gallery');
-        const fileCount = await invoke('count_files');
-
-        gallery.innerHTML = '';
-
-        if (fileCount > maxFilesToRender)
-        {
-            gallery.innerHTML = `<p>You have ${fileCount} files a maximum of ${maxFilesToRender} is the maximum number of files are supported for rendering currently. 
-                                 <br>The desktop wallpaper switching functionily will still function no matter the number of files present in the files directory.</p>`;
-            return;
-        }
-
-        if (fileCount <= 0)
-        {
-            gallery.innerHTML = 'You currently have no files in the image directory. Upload files by dragging and dropping into the area above';
-            return;
-        }
-
-        gallery.innerHTML = 'Loading images...';
+        const gallery = document.querySelector('.image-gallery');
         const files = await invoke('get_files');
-        gallery.innerHTML = '';
 
         files.forEach(file =>
         {
@@ -34,7 +52,7 @@ async function loadImages()
             imageContainer.className = 'image-container';
 
             const img = document.createElement('img');
-            img.src = `data:image/png;base64,${file.thumbnail}`;
+            img.src = `data:image/png;base64,${file.data}`;
             img.alt = file.name;
 
             const imgOverlay = document.createElement('div');
@@ -58,42 +76,42 @@ async function loadImages()
             });
         });
 
+        loader.hide();
     } catch (error)
     {
         console.error('Error loading images:', error);
-        document.getElementById('image-gallery').innerHTML =
-            `Error loading images: ${error}`;
+
+        loader.hide();
     }
 }
 
 async function uploadFiles(files)
 {
-    const CHUNK_SIZE = 16;
-    const totalFiles = files.length;
-
-    let processed = 0;
-
-    while (processed < totalFiles)
+    if (files.length === 0)
     {
-        const chunk = Array.from(files).slice(processed, processed + CHUNK_SIZE);
-        const fileArray = await Promise.all(chunk.map(async file =>
-        {
-            const fileBuffer = await file.arrayBuffer();
-            return {
-                name: file.name.replaceAll(" ", "_"),
-                data: Array.from(new Uint8Array(fileBuffer)),
-            };
-        }));
+        alert("No files selected.");
+        return;
+    }
 
-        try
-        {
-            await invoke("upload_files", { files: fileArray });
-            processed += chunk.length;
-        } catch (error)
-        {
-            alert(`Error uploading files: ${error}`);
-            break;
-        }
+    loader.show();
+
+    const fileArray = [];
+    for (const file of files)
+    {
+        const fileBuffer = await file.arrayBuffer();
+
+        fileArray.push({
+            name: file.name.replaceAll(" ", "_"),
+            data: Array.from(new Uint8Array(fileBuffer)),
+        });
+    }
+
+    try
+    {
+        await invoke("upload_files", { files: fileArray });
+    } catch (error)
+    {
+        alert("Error uploading files: " + error);
     }
 
     loadImages();
@@ -121,11 +139,11 @@ async function deleteImage(fileName, element)
 
 document.addEventListener("DOMContentLoaded", () =>
 {
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('file-input');
-    const deleteAllImages = document.getElementById('delete-all-images-button');
-    const resetWallpaperCounter = document.getElementById('reset-wallpaper-counter-button');
-    const openImageDirectory = document.getElementById('open-image-directory-button');
+    const dropzone = document.querySelector('#dropzone');
+    const fileInput = document.querySelector('#file-input');
+    const deleteAllImages = document.querySelector('#delete-all-images-button');
+    const resetWallpaperCounter = document.querySelector('#reset-wallpaper-counter-button');
+    const openImageDirectory = document.querySelector('#open-image-directory-button');
 
     dropzone.addEventListener('click', () => fileInput.click());
     dropzone.addEventListener('dragover', (event) =>
@@ -182,3 +200,4 @@ document.addEventListener("DOMContentLoaded", () =>
 
     loadImages();
 });
+
