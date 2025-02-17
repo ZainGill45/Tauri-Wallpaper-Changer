@@ -1,6 +1,6 @@
-use base64::encode;
+use actix_files as fs;
+use actix_web::{App, HttpServer};
 use platform_dirs::AppDirs;
-use rand::seq::SliceRandom;
 use std::fs as std_fs;
 use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
@@ -12,10 +12,9 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
+use rand::seq::SliceRandom;
 use tokio::fs as tokio_fs;
-use winapi::um::winuser::{
-    SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
-};
+use winapi::um::winuser::{SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER};
 
 #[derive(serde::Deserialize, Debug)]
 struct FileData {
@@ -42,18 +41,10 @@ fn get_images_dir() -> Result<PathBuf, String> {
     Ok(images_dir)
 }
 
-async fn file_to_base64(file_path: &PathBuf) -> Result<String, String> {
-    let file_data = tokio_fs::read(file_path)
-        .await
-        .map_err(|e| format!("Failed to read file {:?}: {}", file_path, e))?;
-    Ok(encode(file_data))
-}
-
 #[command]
 async fn upload_files(files: Vec<FileData>) -> Result<String, String> {
     println!("Received {} files for upload", files.len());
 
-    // Handle the Result from `get_images_dir()`
     let images_dir =
         get_images_dir().map_err(|e| format!("Failed to get images directory: {}", e))?;
     println!("Images directory: {:?}", images_dir);
@@ -65,7 +56,6 @@ async fn upload_files(files: Vec<FileData>) -> Result<String, String> {
             file.data.len()
         );
 
-        // Construct the file path using `PathBuf::join`
         let file_path = images_dir.join(&file.name);
         println!("Writing to path: {:?}", file_path);
 
@@ -99,14 +89,12 @@ async fn open_images_directory() -> Result<String, String> {
 async fn get_files() -> Result<Vec<FileInfo>, String> {
     println!("Fetching list of images");
 
-    // Handle the `get_images_dir` Result
     let images_dir =
         get_images_dir().map_err(|e| format!("Failed to get images directory: {}", e))?;
     println!("Reading directory: {:?}", images_dir);
 
     let mut files = Vec::new();
 
-    // Use `tokio::fs::read_dir` for async directory reading
     let mut dir_entries = tokio_fs::read_dir(&images_dir)
         .await
         .map_err(|e| format!("Failed to read directory: {}", e))?;
@@ -119,19 +107,13 @@ async fn get_files() -> Result<Vec<FileInfo>, String> {
         let path = entry.path();
         if path.is_file() {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                match file_to_base64(&path).await {
-                    Ok(encoded_data) => {
-                        files.push(FileInfo {
-                            name: name.to_string(),
-                            data: encoded_data,
-                        });
-                        println!("Encoded file: {}", name);
-                    }
-                    Err(err) => {
-                        println!("Error encoding file {}: {}", name, err);
-                        continue;
-                    }
-                }
+                // Build the URL from the local image server.
+                let file_url = format!("http://127.0.0.1:8080/{}", name);
+                files.push(FileInfo {
+                    name: name.to_string(),
+                    data: file_url,
+                });
+                println!("Found file: {}", name);
             }
         }
     }
@@ -255,6 +237,30 @@ fn start_wallpaper_update() {
 pub fn run() {
     println!("Starting Tauri application...");
 
+    // Spawn the image server in a separate thread.
+    thread::spawn(|| {
+        let images_dir = get_images_dir().expect("Could not determine images directory");
+        println!("Starting image server serving directory: {:?}", images_dir);
+
+        // Build the HTTP server.
+        let server = HttpServer::new(move || {
+            App::new().service(
+                fs::Files::new("/", images_dir.clone())
+                    // Optionally, remove file listings for production use:
+                    .show_files_listing(),
+            )
+        })
+            .bind("127.0.0.1:8080")
+            .expect("Failed to bind to image server port")
+            .run();
+
+        println!("Started image server at 127.0.0.1:8080");
+
+        // Start a new Actix system to block on the server.
+        actix_web::rt::System::new().block_on(server).expect("TODO: panic message");
+    });
+
+    // Spawn the wallpaper update thread.
     thread::spawn(|| {
         start_wallpaper_update();
     });

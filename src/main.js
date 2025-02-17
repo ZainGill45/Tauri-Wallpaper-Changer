@@ -46,13 +46,15 @@ async function loadImages()
         const gallery = document.querySelector('.image-gallery');
         const files = await invoke('get_files');
 
+        console.log(files);
+
         files.forEach(file =>
         {
             const imageContainer = document.createElement('div');
             imageContainer.className = 'image-container';
 
             const img = document.createElement('img');
-            img.src = `data:image/png;base64,${file.data}`;
+            img.src = file.data;
             img.alt = file.name;
 
             const imgOverlay = document.createElement('div');
@@ -196,5 +198,7 @@ document.addEventListener("DOMContentLoaded", () =>
     {
         invoke('open_images_directory');
     });
+
+    loadImages();
 });
 
