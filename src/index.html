@@ -1,10 +1,10 @@
 <!DOCTYPE html>
+<!--suppress CssUnusedSymbol -->
 <html lang="en">
 
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" type="text/css" href="styles.css" />
 	<title>Tauri File Upload</title>
 	<style>
 		@keyframes spin {
@@ -34,14 +34,13 @@
 		}
 
 		button {
-			background-color: transparent;
 			padding-block: 1rem;
 			border-radius: 12px;
+			border: none;
 			color: #ffffff;
 			cursor: pointer;
 			font-size: 1.15rem;
 			flex-grow: 1;
-			border: none;
 			background-color: #4f46e5;
 			transition: background-color ease-out 0.2s;
 		}
@@ -98,7 +97,7 @@
 		}
 
 		.file-dropzone {
-			border: 2px dashed #d1d5db;
+			border: 3px dashed #d1d5db;
 			border-radius: 12px;
 			padding: 3rem;
 			text-align: center;
@@ -110,14 +109,14 @@
 		}
 
 		.file-dropzone:hover {
-			background-color: #f9fafb;
+			background-color: #ffffff;
 			border-color: #4f46e5;
 		}
 
 		.file-dropzone p {
 			margin: 0;
 			color: #6b7280;
-			font-size: 1rem;
+			font-size: 1.15rem;
 		}
 
 		.file-dropzone .browse {
@@ -151,10 +150,10 @@
 			position: relative;
 			display: inline-block;
 			width: 360px;
-			height: 202.5px;
+			height: 203px;
 			overflow: hidden;
 			border-radius: 8px;
-			box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+			box-shadow: rgba(100, 100, 111, 0.2) 0 7px 29px 0;
 			text-align: center;
 		}
 
@@ -216,7 +215,7 @@
 	</div>
 	<div class="file-dropzone" id="dropzone">
 		<p>Drag and drop your files here or <span class="browse">browse</span></p>
-		<input type="file" id="file-input" multiple hidden>
+		<input type="file" id="file-input" multiple hidden accept="image/png, image/jpeg, image/jpg, image/bmp" />
 	</div>
 	<div class="image-gallery">
 	</div>

@@ -183,7 +183,7 @@ document.addEventListener("DOMContentLoaded", () =>
     {
         await invoke('delete_all_images');
 
-        imageElements = document.querySelectorAll(".image-container");
+        let imageElements = document.querySelectorAll(".image-container");
 
         for (let i = 0; i < imageElements.length; i++)
             imageElements[i].remove();
@@ -196,7 +196,5 @@ document.addEventListener("DOMContentLoaded", () =>
     {
         invoke('open_images_directory');
     });
-
-    loadImages();
 });
 
