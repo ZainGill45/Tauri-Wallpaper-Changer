@@ -344,10 +344,14 @@
     </div>
     <div class="image-gallery"></div>
     <script>
-        function waitForTauri() {
-            return new Promise((resolve) => {
-                const interval = setInterval(() => {
-                    if (window.__TAURI__) {
+        function waitForTauri()
+        {
+            return new Promise((resolve) =>
+            {
+                const interval = setInterval(() =>
+                {
+                    if (window.__TAURI__)
+                    {
                         clearInterval(interval);
                         resolve();
                     }
@@ -559,12 +563,14 @@
 
         document.addEventListener('DOMContentLoaded', async () =>
         {
-            if (!window.__TAURI__) {
+            if (!window.__TAURI__)
+            {
                 console.warn("Tauri API not found, waiting...");
                 await waitForTauri();
             }
 
-            if (!window.__TAURI__.core) {
+            if (!window.__TAURI__.core)
+            {
                 console.error("Still did not find Tauri API nothing will work.");
                 showAlert('Fetal Error', 'Tauri API not found this should not happen please report this error at: https://github.com/ZainGill45/Tauri-Wallpaper-Changer');
             }
