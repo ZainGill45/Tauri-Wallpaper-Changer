@@ -6,10 +6,9 @@ use std::fs as std_fs;
 use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+use std::sync::{Condvar, Arc, Mutex};
 use tauri::{command, Manager};
 use tauri::{
     menu::{Menu, MenuItem},
@@ -22,6 +21,7 @@ use winapi::um::winuser::{
 
 lazy_static::lazy_static! {
     static ref GLOBAL_WALLPAPER_CHANGE_INTERVAL: Arc<Mutex<u64>> = Arc::new(Mutex::new(300));
+    static ref GLOBAL_CONDVAR: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
 }
 
 #[command]
@@ -29,7 +29,11 @@ fn modify_wallpaper_change_interval(new_change_interval: u64) {
     let mut interval = GLOBAL_WALLPAPER_CHANGE_INTERVAL.lock().unwrap();
     *interval = new_change_interval;
 
-    let _ = set_random_wallpaper();
+    // Notify the wallpaper loop to update its interval
+    let (lock, cvar) = GLOBAL_CONDVAR.as_ref();
+    let mut restart_flag = lock.lock().unwrap();
+    *restart_flag = true; // Set the flag to notify a restart
+    cvar.notify_one();    // Wake up the wallpaper thread
 }
 
 #[command]
@@ -247,25 +251,41 @@ fn set_random_wallpaper() -> Result<String, String> {
 }
 
 fn start_wallpaper_update() {
+    let (lock, cvar) = GLOBAL_CONDVAR.as_ref();
+    let mut restart_flag = lock.lock().unwrap();
+
     loop {
-        match set_random_wallpaper() {
-            Ok(msg) => println!("{}", msg),
-            Err(e) => eprintln!("Error setting wallpaper: {}", e),
+        while !*restart_flag {
+            match set_random_wallpaper() {
+                Ok(msg) => println!("{}", msg),
+                Err(e) => eprintln!("Error setting wallpaper: {}", e),
+            }
+
+            let interval = *GLOBAL_WALLPAPER_CHANGE_INTERVAL.lock().unwrap();
+            let result = cvar
+                .wait_timeout(restart_flag, Duration::from_secs(interval))
+                .unwrap();
+
+            // If timeout occurs, continue to update wallpaper
+            if result.1.timed_out() {
+                restart_flag = result.0;
+                break;
+            }
+
+            restart_flag = result.0;
         }
-        // Use the thread-safe accessor to get the interval
-        thread::sleep(Duration::from_secs(get_wallpaper_change_interval()));
+
+        *restart_flag = false;
     }
 }
 
 pub fn run() {
     println!("Starting Tauri application...");
 
-    // Spawn the image server in a separate thread.
     thread::spawn(|| {
         let images_dir = get_images_dir().expect("Could not determine images directory");
         println!("Starting image server serving directory: {:?}", images_dir);
 
-        // Build the HTTP server.
         let server = HttpServer::new(move || {
             App::new().service(
                 fs::Files::new("/", images_dir.clone())
@@ -279,13 +299,11 @@ pub fn run() {
 
         println!("Started image server at 127.0.0.1:8080");
 
-        // Start a new Actix system to block on the server.
         actix_web::rt::System::new()
             .block_on(server)
             .expect("TODO: panic message");
     });
 
-    // Spawn the wallpaper update thread.
     thread::spawn(|| {
         start_wallpaper_update();
     });

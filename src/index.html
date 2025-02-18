@@ -96,7 +96,6 @@
         .timer-overlay .timer-form input {
             padding: 1rem;
             border-radius: 12px;
-            border: none;
             width: 94%;
             font-size: 1rem;
             outline-color: #d1d5db;
@@ -587,8 +586,20 @@
             });
             changeIntervalBtn.addEventListener('click', async () =>
             {
-                const changeIntervalInput = document.getElementById('wallpaper-change-interval-input');
                 formOverlay.hide();
+
+                const changeIntervalInput = document.getElementById('wallpaper-change-interval-input');
+
+                if (changeIntervalInput.value === '' || changeIntervalInput.value === undefined) {
+                    showAlert('Invalid Interval Value', 'Please select at least one file to upload images.');
+                    changeIntervalInput.value = '';
+                }
+
+                await invoke('modify_wallpaper_change_interval', { newChangeInterval: Number(changeIntervalInput.value) });
+
+                const response = await invoke('get_wallpaper_change_interval');
+
+                showAlert('Wallpaper Interval Changed', `Desktop wallpaper will now switch every ${response} seconds.`);
             });
             wallpaperBtn.addEventListener('click', () =>
             {
