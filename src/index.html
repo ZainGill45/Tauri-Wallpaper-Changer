@@ -326,10 +326,10 @@
     <div class="timer-overlay">
         <div class="timer-form">
             <input type="number" min="5" max="28800" id="wallpaper-change-interval-input"
-                placeholder="Change interval in seconds..." />
+                placeholder="New change interval in seconds..." />
             <div class="timer-button-wrapper">
                 <button type="submit" id="change-interval-submit-button">Submit</button>
-                <button type="button" id="timer-overlay-close-buttom">Close</button>
+                <button type="button" id="timer-overlay-close-button">Close</button>
             </div>
         </div>
     </div>
@@ -344,6 +344,19 @@
     </div>
     <div class="image-gallery"></div>
     <script>
+        function waitForTauri() {
+            return new Promise((resolve) => {
+                const interval = setInterval(() => {
+                    if (window.__TAURI__) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 50);
+            });
+        }
+
+        let invoke;
+
         class LoadingOverlay
         {
             constructor()
@@ -413,6 +426,7 @@
                 document.addEventListener('keydown', e =>
                 {
                     if (e.key === 'Escape' && this.overlay.classList.contains('active')) this.hide();
+                    if (e.key === 'Space' && this.overlay.classList.contains('active')) this.hide();
                 });
             }
 
@@ -446,13 +460,14 @@
             }
         }
 
-        const { invoke } = window.__TAURI__.core;
         const loadingOverlay = new LoadingOverlay();
         const formOverlay = new FormOverlay();
         const alertDialog = new AlertDialog();
 
         async function loadImages()
         {
+            const { invoke } = window.__TAURI__.core;
+
             loadingOverlay.show();
 
             try
@@ -498,6 +513,8 @@
         }
         async function uploadFiles(files)
         {
+            const { invoke } = window.__TAURI__.core;
+
             if (!files.length)
             {
                 showAlert('No Files Selected', 'Please select at least one file to upload images.');
@@ -521,6 +538,8 @@
         }
         async function deleteImage(fileName, element)
         {
+            const { invoke } = window.__TAURI__.core;
+
             try
             {
                 const response = await invoke('delete_image', { fileName });
@@ -538,9 +557,19 @@
             }
         }
 
-        document.addEventListener("DOMContentLoaded", async () =>
+        document.addEventListener('DOMContentLoaded', async () =>
         {
-            showAlert('General Information', 'For large file uploads, please open the image directory, upload manually, and then restart the application.');
+            if (!window.__TAURI__) {
+                console.warn("Tauri API not found, waiting...");
+                await waitForTauri();
+            }
+
+            if (!window.__TAURI__.core) {
+                console.error("Still did not find Tauri API nothing will work.");
+                showAlert('Fetal Error', 'Tauri API not found this should not happen please report this error at: https://github.com/ZainGill45/Tauri-Wallpaper-Changer');
+            }
+
+            const { invoke } = window.__TAURI__.core;
 
             const dropzone = document.getElementById('dropzone');
             const fileInput = document.getElementById('file-input');
@@ -549,7 +578,9 @@
             const deleteAllBtn = document.getElementById('delete-all-images-button');
             const wallpaperBtn = document.getElementById('set-wallpaper-timer-button');
             const openDirBtn = document.getElementById('open-image-directory-button');
-            const closeFrmBtn = document.getElementById('timer-overlay-close-buttom');
+            const closeFrmBtn = document.getElementById('timer-overlay-close-button');
+
+            showAlert('General Information', 'For large file uploads, please open the image directory, upload manually, and then restart the application.');
 
             closeFrmBtn.addEventListener('click', () => formOverlay.hide());
             dropzone.addEventListener('click', () => fileInput.click());
@@ -588,9 +619,8 @@
             {
                 formOverlay.hide();
 
-                const changeIntervalInput = document.getElementById('wallpaper-change-interval-input');
-
-                if (changeIntervalInput.value === '' || changeIntervalInput.value === undefined) {
+                if (changeIntervalInput.value === '' || changeIntervalInput.value === undefined)
+                {
                     showAlert('Invalid Interval Value', 'Please select at least one file to upload images.');
                     changeIntervalInput.value = '';
                 }

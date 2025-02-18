@@ -9,11 +9,13 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Condvar, Arc, Mutex};
+use serde_json::json;
 use tauri::{command, Manager};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
+use tauri_plugin_store::StoreExt;
 use tokio::fs as tokio_fs;
 use winapi::um::winuser::{
     SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
@@ -25,15 +27,18 @@ lazy_static::lazy_static! {
 }
 
 #[command]
-fn modify_wallpaper_change_interval(new_change_interval: u64) {
+fn modify_wallpaper_change_interval(new_change_interval: u64, app_handle: tauri::AppHandle) {
     let mut interval = GLOBAL_WALLPAPER_CHANGE_INTERVAL.lock().unwrap();
     *interval = new_change_interval;
 
-    // Notify the wallpaper loop to update its interval
+    let store = app_handle.store("store.json").expect("store not found");
+    store.set("wallpaper_interval", json!(new_change_interval));
+    store.save().expect("failed to save store");
+
     let (lock, cvar) = GLOBAL_CONDVAR.as_ref();
     let mut restart_flag = lock.lock().unwrap();
-    *restart_flag = true; // Set the flag to notify a restart
-    cvar.notify_one();    // Wake up the wallpaper thread
+    *restart_flag = true;
+    cvar.notify_one();
 }
 
 #[command]
@@ -293,9 +298,9 @@ pub fn run() {
                     .show_files_listing(),
             )
         })
-        .bind("127.0.0.1:8080")
-        .expect("Failed to bind to image server port")
-        .run();
+            .bind("127.0.0.1:8080")
+            .expect("Failed to bind to image server port")
+            .run();
 
         println!("Started image server at 127.0.0.1:8080");
 
@@ -304,12 +309,24 @@ pub fn run() {
             .expect("TODO: panic message");
     });
 
-    thread::spawn(|| {
-        start_wallpaper_update();
-    });
-
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
+            let store = app.store("store.json")?;
+            let stored_interval = store
+                .get("wallpaper_interval")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(300);
+            {
+                let mut interval = GLOBAL_WALLPAPER_CHANGE_INTERVAL.lock().unwrap();
+                *interval = stored_interval;
+            }
+            println!("Loaded wallpaper interval: {}", stored_interval);
+
+            thread::spawn(|| {
+                start_wallpaper_update();
+            });
+
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
 
