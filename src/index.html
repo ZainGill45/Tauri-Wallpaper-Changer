@@ -600,6 +600,8 @@
                 const response = await invoke('get_wallpaper_change_interval');
 
                 showAlert('Wallpaper Interval Changed', `Desktop wallpaper will now switch every ${response} seconds.`);
+
+                changeIntervalInput.value = '';
             });
             wallpaperBtn.addEventListener('click', () =>
             {
