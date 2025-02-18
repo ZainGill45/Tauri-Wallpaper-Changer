@@ -1,10 +1,13 @@
 use actix_files as fs;
 use actix_web::{App, HttpServer};
 use platform_dirs::AppDirs;
+use rand::seq::SliceRandom;
 use std::fs as std_fs;
 use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use tauri::{command, Manager};
@@ -12,9 +15,28 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
-use rand::seq::SliceRandom;
 use tokio::fs as tokio_fs;
-use winapi::um::winuser::{SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER};
+use winapi::um::winuser::{
+    SystemParametersInfoW, SPIF_SENDWININICHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
+};
+
+lazy_static::lazy_static! {
+    static ref GLOBAL_WALLPAPER_CHANGE_INTERVAL: Arc<Mutex<u64>> = Arc::new(Mutex::new(300));
+}
+
+#[command]
+fn modify_wallpaper_change_interval(new_change_interval: u64) {
+    let mut interval = GLOBAL_WALLPAPER_CHANGE_INTERVAL.lock().unwrap();
+    *interval = new_change_interval;
+
+    let _ = set_random_wallpaper();
+}
+
+#[command]
+fn get_wallpaper_change_interval() -> u64 {
+    let interval = GLOBAL_WALLPAPER_CHANGE_INTERVAL.lock().unwrap();
+    *interval
+}
 
 #[derive(serde::Deserialize, Debug)]
 struct FileData {
@@ -230,7 +252,8 @@ fn start_wallpaper_update() {
             Ok(msg) => println!("{}", msg),
             Err(e) => eprintln!("Error setting wallpaper: {}", e),
         }
-        thread::sleep(Duration::from_secs(600));
+        // Use the thread-safe accessor to get the interval
+        thread::sleep(Duration::from_secs(get_wallpaper_change_interval()));
     }
 }
 
@@ -250,14 +273,16 @@ pub fn run() {
                     .show_files_listing(),
             )
         })
-            .bind("127.0.0.1:8080")
-            .expect("Failed to bind to image server port")
-            .run();
+        .bind("127.0.0.1:8080")
+        .expect("Failed to bind to image server port")
+        .run();
 
         println!("Started image server at 127.0.0.1:8080");
 
         // Start a new Actix system to block on the server.
-        actix_web::rt::System::new().block_on(server).expect("TODO: panic message");
+        actix_web::rt::System::new()
+            .block_on(server)
+            .expect("TODO: panic message");
     });
 
     // Spawn the wallpaper update thread.
@@ -308,7 +333,9 @@ pub fn run() {
             delete_all_images,
             open_images_directory,
             get_files,
-            set_random_wallpaper
+            set_random_wallpaper,
+            modify_wallpaper_change_interval,
+            get_wallpaper_change_interval
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
