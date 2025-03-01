@@ -328,9 +328,10 @@ pub fn run() {
             });
 
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let change_i = MenuItem::with_id(app, "change wallpaper", "Change Wallpaper", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
 
-            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&show_i, &change_i, &quit_i])?;
 
             TrayIconBuilder::new()
                 .menu(&menu)
@@ -340,6 +341,10 @@ pub fn run() {
                     "quit" => {
                         println!("quit menu item was clicked");
                         app.exit(0);
+                    }
+                    "change wallpaper" => {
+                        println!("change wallpaper menu item was clicked");
+                        let _ = set_random_wallpaper();
                     }
                     "show" => {
                         println!("show menu item was clicked");
