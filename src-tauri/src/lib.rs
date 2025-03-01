@@ -284,6 +284,7 @@ fn start_wallpaper_update() {
     }
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     println!("Starting Tauri application...");
 
@@ -312,6 +313,21 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_autostart::MacosLauncher;
+                use tauri_plugin_autostart::ManagerExt;
+
+                let _ = app.handle().plugin(tauri_plugin_autostart::init(
+                    MacosLauncher::LaunchAgent,
+                    Some(vec!["--autoStartFromSystem"]),
+                ));
+
+                let autostart_manager = app.autolaunch();
+                let _ = autostart_manager.enable();
+                println!("registered for autostart? {}", autostart_manager.is_enabled().unwrap());
+            }
+
             let store = app.store("store.json")?;
             let stored_interval = store
                 .get("wallpaper_interval")
@@ -356,6 +372,12 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            let main_window = app.get_webview_window("main").unwrap();
+
+            if std::env::args().any(|arg| arg == "--autoStartFromSystem") {
+                main_window.hide().unwrap();
+            }
 
             Ok(())
         })
