@@ -1,5 +1,7 @@
 # Wallpaper Changer App
 
+![Image of Tauri Wallpaper Changer Application made with Rust](Tauri Wallpaper Changer.png)
+
 ## Overview
 
 The **Wallpaper Changer App** is designed to randomly set the same wallpaper across multiple monitors at regular intervals. It was created to address the lack of a simple way to achieve this functionality on Windows systems. The app was built using **Tauri** (for creating a lightweight desktop application) and **Rust** (for backend operations), offering an opportunity to explore and learn both technologies.
