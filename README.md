@@ -1,6 +1,6 @@
 # Wallpaper Changer App
 
-![Image of Tauri Wallpaper Changer Application made with Rust](Tauri Wallpaper Changer.png)
+![Image of Tauri Wallpaper Changer Application made with Rust](Tauri-Wallpaper-Changer-Demo.png)
 
 ## Overview
 
